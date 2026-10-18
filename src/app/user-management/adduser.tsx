@@ -60,7 +60,7 @@ export default function AddUser() {
         lastName: lastName.trim(),
       },
       username: username.trim(),
-      dob: dob ? new Date(`${dob}T00:00:00.000Z`).toISOString() : null,
+      dob: new Date(`${dob}T00:00:00.000Z`).toISOString(),
       gender,
       mobile: {
         primary: primaryMobile.trim(),
@@ -188,6 +188,7 @@ export default function AddUser() {
                   <CalendarDays className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="date"
+                    required
                     value={dob}
                     max={new Date().toISOString().slice(0, 10)}
                     onChange={(e) => setDob(e.target.value)}
@@ -205,7 +206,7 @@ export default function AddUser() {
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
               </Field>
 
