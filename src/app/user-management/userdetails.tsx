@@ -1,7 +1,8 @@
 
-import Link from 'next/link';
+'use client';
+
+import { useEffect, useState } from 'react';
 import {
-  ArrowLeft,
   UserRound,
   Mail,
   Phone,
@@ -10,148 +11,106 @@ import {
   AtSign,
   Clock,
   Camera,
-  User,
+  User as UserIcon,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
+import { Button } from '@/components/ui/button';
+import { getUserById } from '@/lib/api/users';
+import {
+  formatUserDate,
+  formatUserDateTime,
+  getUserFullName,
+} from '@/lib/user-format';
+import type { User } from '@/types/user';
 
 interface UserDetailsProps {
   id: string;
 }
 
-interface User {
-  _id: string;
-  name: {
-    firstName: string;
-    lastName: string;
-  };
-  username: string;
-  dob: string;
-  gender: string;
-  mobile: {
-    primary: string;
-    alternate: string;
-  };
-  email: string;
-  address: {
-    building: string;
-    streetAddress: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-  };
-  profileImage: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Temporary sample data matching your MongoDB response.
-// Replace with your API request when the GET-by-ID endpoint is ready.
-const users: User[] = [
-  {
-    _id: '6ad51e68f8e6fddfd15b468e',
-    name: { firstName: 'Reyansh', lastName: 'Patel' },
-    username: 'reyanshpatel19',
-    dob: '2025-11-19T00:00:00.000Z',
-    gender: 'male',
-    mobile: {
-      primary: '+918906030000',
-      alternate: '+919540990000',
-    },
-    email: 'reyansh@reyansha.com',
-    address: {
-      building: '112 Parkar House',
-      streetAddress: 'S Devji Street, Mandvi',
-      city: 'Basti',
-      state: 'Uttar Pradesh',
-      postalCode: '272161',
-      country: 'India',
-    },
-    profileImage: null,
-    createdAt: '2026-10-18T19:32:57.847Z',
-    updatedAt: '2026-10-18T19:32:57.847Z',
-  },
-  {
-    _id: '6ad51decf8e6fddfd15b468d',
-    name: { firstName: 'Vipin', lastName: 'Patel' },
-    username: 'vipinpatel50',
-    dob: '1996-08-05T00:00:00.000Z',
-    gender: 'male',
-    mobile: {
-      primary: '+919540701111',
-      alternate: '+919919015050',
-    },
-    email: 'vipinpatel@reyansha.com',
-    address: {
-      building: '31 Parkar House',
-      streetAddress: 'S Devji Street, Mandvi',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      postalCode: '400003',
-      country: 'India',
-    },
-    profileImage: null,
-    createdAt: '2026-10-18T19:28:44.560Z',
-    updatedAt: '2026-10-18T19:28:44.560Z',
-  },
-];
-
-function formatDate(value?: string) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function formatDateTime(value?: string) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-    timeZoneName: 'short',
-  });
-}
-
 export default function UserDetails({ id }: UserDetailsProps) {
-  const user = users.find((item) => item._id === id);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
-  if (!user) {
+  useEffect(() => {
+    let active = true;
+
+    getUserById(id)
+      .then((result) => {
+        if (active) setUser(result);
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to load this user.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id, retryCount]);
+
+  if (loading) {
     return (
       <main className="min-h-screen bg-muted/30 p-6 sm:p-8">
-        <Breadcrumbs />
         <div className="mx-auto max-w-5xl space-y-6">
-          
-
-          <section className="rounded-xl border bg-card px-6 py-16 text-center">
-            <UserRound className="mx-auto mb-3 size-10 text-muted-foreground" />
-            <h1 className="text-xl font-semibold">User Not Found</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              No user exists in the current sample data for ID {id}.
-            </p>
+          <Breadcrumbs />
+          <section
+            aria-live="polite"
+            aria-busy="true"
+            className="rounded-xl border bg-card px-6 py-16 text-center"
+          >
+            <RefreshCw className="mx-auto mb-3 size-8 animate-spin text-primary" />
+            <p className="font-medium">Loading user details...</p>
           </section>
         </div>
       </main>
     );
   }
 
-  const fullName = `${user.name.firstName} ${user.name.lastName}`;
+  if (error || !user) {
+    return (
+      <main className="min-h-screen bg-muted/30 p-6 sm:p-8">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <Breadcrumbs />
+          <section className="rounded-xl border bg-card px-6 py-16 text-center">
+            <AlertCircle className="mx-auto mb-3 size-10 text-destructive" />
+            <h1 className="text-xl font-semibold">
+              {error ? 'Unable to load user' : 'User Not Found'}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {error || `No user was returned for ID ${id}.`}
+            </p>
+            {error && (
+              <Button
+                className="mt-4"
+                onClick={() => {
+                  setError('');
+                  setLoading(true);
+                  setRetryCount((count) => count + 1);
+                }}
+              >
+                <RefreshCw className="mr-2 size-4" />
+                Try Again
+              </Button>
+            )}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const fullName = getUserFullName(user);
 
   return (
     <main className="min-h-screen bg-muted/30 p-4 sm:p-6 lg:p-8">
@@ -182,7 +141,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
             <div className="min-w-0 flex-1 pt-1">
               <h1 className="text-2xl font-bold tracking-tight">{fullName}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                @{user.username}
+                @{user.username || '—'}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -200,7 +159,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
         {/* Profile overview */}
         <div className="grid gap-6 lg:grid-cols-2">
           <InfoSection
-            icon={<User className="size-5" />}
+            icon={<UserIcon className="size-5" />}
             title="Personal Information"
             description="Basic information about this user."
           >
@@ -214,7 +173,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
             <DetailRow
               icon={<CalendarDays className="size-4" />}
               label="Date of Birth"
-              value={formatDate(user.dob)}
+              value={formatUserDate(user.dob, 'long')}
             />
             <DetailRow
               label="Gender"
@@ -237,12 +196,12 @@ export default function UserDetails({ id }: UserDetailsProps) {
             <DetailRow
               icon={<Phone className="size-4" />}
               label="Primary Mobile"
-              value={user.mobile.primary}
+              value={user.mobile?.primary}
             />
             <DetailRow
               icon={<Phone className="size-4" />}
               label="Alternate Mobile"
-              value={user.mobile.alternate || '—'}
+              value={user.mobile?.alternate}
             />
           </InfoSection>
 
@@ -251,12 +210,12 @@ export default function UserDetails({ id }: UserDetailsProps) {
             title="Address Information"
             description="Registered address for this user."
           >
-            <DetailRow label="Building / House" value={user.address.building} />
-            <DetailRow label="Street Address" value={user.address.streetAddress} />
-            <DetailRow label="City" value={user.address.city} />
-            <DetailRow label="State" value={user.address.state} />
-            <DetailRow label="Postal Code" value={user.address.postalCode} />
-            <DetailRow label="Country" value={user.address.country} />
+            <DetailRow label="Building / House" value={user.address?.building} />
+            <DetailRow label="Street Address" value={user.address?.streetAddress} />
+            <DetailRow label="City" value={user.address?.city} />
+            <DetailRow label="State" value={user.address?.state} />
+            <DetailRow label="Postal Code" value={user.address?.postalCode} />
+            <DetailRow label="Country" value={user.address?.country} />
           </InfoSection>
 
           <InfoSection
@@ -265,8 +224,8 @@ export default function UserDetails({ id }: UserDetailsProps) {
             description="Record creation and last update."
           >
             <DetailRow label="MongoDB ID" value={user._id} />
-            <DetailRow label="Created At" value={formatDateTime(user.createdAt)} />
-            <DetailRow label="Last Updated" value={formatDateTime(user.updatedAt)} />
+            <DetailRow label="Created At" value={formatUserDateTime(user.createdAt)} />
+            <DetailRow label="Last Updated" value={formatUserDateTime(user.updatedAt)} />
             <DetailRow
               icon={<Camera className="size-4" />}
               label="Profile Image"
@@ -314,7 +273,7 @@ function DetailRow({
 }: {
   icon?: React.ReactNode;
   label: string;
-  value: string;
+  value?: string | null;
 }) {
   return (
     <div className="flex min-w-0 items-start gap-3 border-b pb-4 last:border-0 last:pb-0">

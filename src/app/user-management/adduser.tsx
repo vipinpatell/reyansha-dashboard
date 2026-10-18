@@ -3,6 +3,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Camera,
@@ -18,6 +19,8 @@ import {
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
+import { createUser } from '@/lib/api/users';
+import type { CreateUserInput } from '@/types/user';
 
 const inputClass =
   'h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring';
@@ -25,6 +28,7 @@ const inputClass =
 const labelClass = 'mb-2 block text-sm font-medium';
 
 export default function AddUser() {
+  const router = useRouter();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -46,11 +50,11 @@ export default function AddUser() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
 
-    const payload = {
+    const payload: CreateUserInput = {
       name: {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -74,9 +78,20 @@ export default function AddUser() {
       profileImage: profileImage.trim() || null,
     };
 
-    // Replace this with your POST request to the NestJS API.
-    console.log('New user payload:', payload);
-    alert('Form validated. Connect the API to save this user to MongoDB.');
+    setSaving(true);
+
+    try {
+      await createUser(payload);
+      router.push('/user-management/users');
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Unable to create the user. Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -328,9 +343,12 @@ export default function AddUser() {
 
           {/* Form actions */}
           <div className="flex flex-col-reverse justify-end gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:p-5">
-            <Button variant="outline" type="button" asChild>
-              <Link href="/user-management/users">Cancel</Link>
-            </Button>
+            <Link
+              href="/user-management/users"
+              className={buttonVariants({ variant: 'outline' })}
+            >
+              Cancel
+            </Link>
 
             <Button type="submit" disabled={saving}>
               <Save className="mr-2 size-4" />

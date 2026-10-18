@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Search,
@@ -14,97 +14,9 @@ import {
 } from 'lucide-react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-
-interface User {
-  _id: string;
-  name: {
-    firstName: string;
-    lastName: string;
-  };
-  username: string;
-  dob: string;
-  gender: string;
-  mobile: {
-    primary: string;
-    alternate?: string;
-  };
-  email: string;
-  address: {
-    building?: string;
-    streetAddress?: string;
-    city?: string;
-    state?: string;
-    postalCode?: string;
-    country?: string;
-  };
-  profileImage: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-// Reuse an in-flight GET request when React Strict Mode runs effects twice.
-let usersRequest: Promise<User[]> | null = null;
-
-function requestUsers(): Promise<User[]> {
-  if (!API_URL) {
-    return Promise.reject(
-      new Error('API URL is missing. Configure NEXT_PUBLIC_API_URL in .env.local.'),
-    );
-  }
-
-  if (!usersRequest) {
-    usersRequest = fetch(`${API_URL}/users`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Unable to fetch users. Server returned ${response.status}.`);
-        }
-
-        const result: unknown = await response.json();
-        let data: unknown = result;
-
-        if (!Array.isArray(result) && result && typeof result === 'object') {
-          const body = result as Record<string, unknown>;
-          data = body.data ?? body.users ?? body.items;
-        }
-
-        if (!Array.isArray(data)) {
-          throw new Error('Unexpected API response. Expected an array of users.');
-        }
-
-        return data as User[];
-      })
-      .finally(() => {
-        usersRequest = null;
-      });
-  }
-
-  return usersRequest;
-}
-
-function formatDate(value?: string) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function getFullName(user: User) {
-  return `${user.name?.firstName ?? ''} ${user.name?.lastName ?? ''}`.trim();
-}
+import { getUsers } from '@/lib/api/users';
+import { formatUserDate, getUserFullName } from '@/lib/user-format';
+import type { User } from '@/types/user';
 
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([]);
@@ -112,37 +24,46 @@ export default function UserList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchUsers = useCallback(async (isActive?: () => boolean) => {
+  function refreshUsers() {
     setLoading(true);
     setError('');
 
-    try {
-      const data = await requestUsers();
-
-      if (isActive && !isActive()) return;
-      setUsers(data);
-    } catch (err) {
-      if (isActive && !isActive()) return;
-
-      setError(
-        err instanceof Error ? err.message : 'Something went wrong.',
-      );
-    } finally {
-      if (!isActive || isActive()) {
-        setLoading(false);
-      }
-    }
-  }, []);
+    getUsers()
+      .then(setUsers)
+      .catch((requestError: unknown) => {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to load users.',
+        );
+      })
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
     let active = true;
 
-    void fetchUsers(() => active);
+    getUsers()
+      .then((data) => {
+        if (active) setUsers(data);
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to load users.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
       active = false;
     };
-  }, [fetchUsers]);
+  }, []);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -150,7 +71,7 @@ export default function UserList() {
     if (!query) return users;
 
     return users.filter((user) => {
-      const fullName = getFullName(user).toLowerCase();
+      const fullName = getUserFullName(user).toLowerCase();
       const username = (user.username ?? '').toLowerCase();
       const email = (user.email ?? '').toLowerCase();
       const mobile = user.mobile?.primary ?? '';
@@ -194,7 +115,7 @@ export default function UserList() {
       user.name?.lastName ?? '',
       user.username ?? '',
       user.email ?? '',
-      formatDate(user.dob),
+      formatUserDate(user.dob),
       user.gender ?? '',
       user.mobile?.primary ?? '',
       user.mobile?.alternate ?? '',
@@ -204,7 +125,7 @@ export default function UserList() {
       user.address?.state ?? '',
       user.address?.postalCode ?? '',
       user.address?.country ?? '',
-      formatDate(user.createdAt),
+      formatUserDate(user.createdAt),
     ]);
 
     const csv = [headers, ...rows]
@@ -254,7 +175,7 @@ export default function UserList() {
 
           <Button
             variant="outline"
-            onClick={() => void fetchUsers()}
+            onClick={refreshUsers}
             disabled={loading}
           >
             <RefreshCw className={`mr-2 size-4 ${loading ? 'animate-spin' : ''}`} />
@@ -293,7 +214,7 @@ export default function UserList() {
           </p>
           <Button
             className="mt-4"
-            onClick={() => void fetchUsers()}
+            onClick={refreshUsers}
           >
             <RefreshCw className="mr-2 size-4" />
             Try Again
@@ -328,7 +249,7 @@ export default function UserList() {
                         {user.profileImage ? (
                           <img
                             src={user.profileImage}
-                            alt={getFullName(user)}
+                            alt={getUserFullName(user)}
                             className="size-full object-cover"
                           />
                         ) : (
@@ -337,7 +258,7 @@ export default function UserList() {
                       </div>
 
                       <div>
-                        <p className="font-medium">{getFullName(user) || '—'}</p>
+                        <p className="font-medium">{getUserFullName(user) || '—'}</p>
                         <p className="text-muted-foreground">
                           {user.email || '—'}
                         </p>
@@ -362,7 +283,7 @@ export default function UserList() {
                   </td>
 
                   <td className="px-5 py-4">
-                    {formatDate(user.dob)}
+                    {formatUserDate(user.dob)}
                   </td>
 
                   <td className="px-5 py-4">
