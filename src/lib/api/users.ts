@@ -159,3 +159,13 @@ export async function createUser(user: CreateUserInput): Promise<void> {
     body: JSON.stringify(user),
   });
 }
+
+export async function updateUser(
+  id: string,
+  user: CreateUserInput,
+): Promise<void> {
+  await request(`/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(user),
+  });
+}

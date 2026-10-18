@@ -7,6 +7,7 @@ import {
   Search,
   UserRound,
   Eye,
+  Pencil,
   MapPin,
   Download,
   RefreshCw,
@@ -233,7 +234,7 @@ export default function UserList() {
                 <th className="px-5 py-4 font-medium">Gender</th>
                 <th className="px-5 py-4 font-medium">Date of Birth</th>
                 <th className="px-5 py-4 font-medium">Location</th>
-                <th className="px-5 py-4 text-right font-medium">Action</th>
+                <th className="px-5 py-4 text-right font-medium">Actions</th>
               </tr>
             </thead>
 
@@ -304,17 +305,31 @@ export default function UserList() {
                     </div>
                   </td>
 
-                  <td className="px-5 py-4 text-right">
-                    <Link
-                      href={`/user-management/${user._id}`}
-                      className={buttonVariants({
-                        variant: 'outline',
-                        size: 'sm',
-                      })}
-                    >
-                      <Eye className="mr-2 size-4" />
-                      View
-                    </Link>
+                  <td className="px-5 py-4">
+                    <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/user-management/${user._id}`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'sm',
+                        })}
+                        title={`View ${getUserFullName(user) || 'user'} details`}   
+                      >
+                        <Eye className="mr-2 size-4" />
+                        
+                      </Link>
+                      <Link
+                        href={`/user-management/${user._id}/edit`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'icon-sm',
+                        })}
+                        aria-label={`Edit ${getUserFullName(user) || 'user'}`}
+                        title={`Edit ${getUserFullName(user) || 'user'}`}
+                      >
+                        <Pencil className="size-4" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

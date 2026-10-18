@@ -125,7 +125,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
             </span>
           </div>
 
-          <div className="flex flex-col gap-4 px-5 pb-6 sm:flex-row sm:items-end sm:px-8">
+          <div className="flex flex-col gap-4 px-5 py-6 sm:flex-row sm:items-end sm:px-8">
             <div className="-mt-12 flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-background text-primary shadow-sm">
               {user.profileImage ? (
                 <img

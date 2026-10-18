@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, UserRound } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, Save, UserRound } from 'lucide-react';
 
 import UserProfileFields from '@/components/shared/user-management/user-profile-fields';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { createUser } from '@/lib/api/users';
-import type { CreateUserInput, UserFormValues } from '@/types/user';
+import { createUser, getUserById, updateUser } from '@/lib/api/users';
+import type { CreateUserInput, User, UserFormValues } from '@/types/user';
 
 const initialValues: UserFormValues = {
   firstName: '',
@@ -40,12 +40,81 @@ function hasRequiredFields(values: UserFormValues) {
   ].every((value) => value.trim().length > 0);
 }
 
-export default function AddUser() {
+function toFormValues(user: User): UserFormValues {
+  return {
+    firstName: user.name.firstName ?? '',
+    lastName: user.name.lastName ?? '',
+    username: user.username ?? '',
+    dob: user.dob ? user.dob.slice(0, 10) : '',
+    gender: user.gender ?? 'male',
+    email: user.email ?? '',
+    primaryMobile: user.mobile?.primary ?? '',
+    alternateMobile: user.mobile?.alternate ?? '',
+    building: user.address?.building ?? '',
+    streetAddress: user.address?.streetAddress ?? '',
+    city: user.address?.city ?? '',
+    state: user.address?.state ?? '',
+    postalCode: user.address?.postalCode ?? '',
+    country: user.address?.country ?? 'India',
+    profileImage: user.profileImage ?? '',
+  };
+}
+
+interface UserFormProps {
+  userId?: string;
+}
+
+export default function UserForm({ userId }: UserFormProps) {
   const router = useRouter();
   const [values, setValues] = useState(initialValues);
+  const [originalValues, setOriginalValues] =
+    useState<UserFormValues | null>(null);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(Boolean(userId));
   const requiredFieldsComplete = hasRequiredFields(values);
+  const isEditing = Boolean(userId);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let active = true;
+
+    getUserById(userId)
+      .then((user) => {
+        if (active) {
+          const formValues = toFormValues(user);
+          setValues(formValues);
+          setOriginalValues(formValues);
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setLoadError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to load this user.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingUser(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const hasChanges =
+    !isEditing ||
+    (originalValues !== null &&
+      Object.keys(values).some((field) => {
+        const key = field as keyof UserFormValues;
+        return values[key] !== originalValues[key];
+      }));
+  const canSave = requiredFieldsComplete && hasChanges;
 
   function updateField<K extends keyof UserFormValues>(
     field: K,
@@ -58,7 +127,7 @@ export default function AddUser() {
     event.preventDefault();
 
     if (saving) return;
-    if (!requiredFieldsComplete) return;
+    if (!canSave || loadError) return;
 
     setError('');
     setSaving(true);
@@ -88,13 +157,17 @@ export default function AddUser() {
     };
 
     try {
-      await createUser(payload);
+      if (userId) {
+        await updateUser(userId, payload);
+      } else {
+        await createUser(payload);
+      }
       router.push('/user-management/users');
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : 'Unable to create the user. Please try again.',
+          : `Unable to ${isEditing ? 'update' : 'create'} the user. Please try again.`,
       );
     } finally {
       setSaving(false);
@@ -127,9 +200,13 @@ export default function AddUser() {
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
-              <h1 className="text-2xl font-bold tracking-tight">Add New User</h1>
+              <h1 className="text-2xl font-bold tracking-tight">
+                {isEditing ? 'Edit User' : 'Add New User'}
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Create a user profile with personal, contact, and address details.
+                {isEditing
+                  ? 'Update this user’s personal, contact, and address details.'
+                  : 'Create a user profile with personal, contact, and address details.'}
               </p>
             </div>
 
@@ -143,42 +220,77 @@ export default function AddUser() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <UserProfileFields values={values} onChange={updateField} />
-
-          {error && (
+        {loadingUser ? (
+          <div
+            aria-live="polite"
+            aria-busy="true"
+            className="rounded-xl border bg-card p-12 text-center"
+          >
+            <LoaderCircle className="mx-auto mb-3 size-7 animate-spin text-primary" />
+            <p className="font-medium">Loading user details...</p>
+          </div>
+        ) : loadError ? (
+          <div className="rounded-xl border border-destructive/30 bg-card p-8 text-center">
             <p role="alert" className="text-sm text-destructive">
-              {error}
+              Unable to load user: {loadError}
             </p>
-          )}
-
-          <div className="flex flex-col-reverse justify-end gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:p-5">
             <Link
               href="/user-management/users"
-              className={buttonVariants({ variant: 'outline' })}
+              className={`${buttonVariants({ variant: 'outline' })} mt-4`}
             >
-              Cancel
+              Back to Users
             </Link>
-
-            <Button
-              type="submit"
-              disabled={saving || !requiredFieldsComplete}
-              title={
-                requiredFieldsComplete
-                  ? undefined
-                  : 'Complete all required fields to save.'
-              }
-            >
-              <Save className="mr-2 size-4" />
-              {saving ? 'Saving...' : 'Save User'}
-            </Button>
           </div>
-          {!requiredFieldsComplete && (
-            <p className="text-right text-sm text-muted-foreground">
-              Complete all required fields to enable saving.
-            </p>
-          )}
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <UserProfileFields values={values} onChange={updateField} />
+
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
+            <div className="flex flex-col-reverse justify-end gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:p-5">
+              <Link
+                href="/user-management"
+                className={buttonVariants({ variant: 'outline' })}
+              >
+                Cancel
+              </Link>
+
+              <Button
+                type="submit"
+                disabled={saving || !canSave}
+                title={
+                  !requiredFieldsComplete
+                    ? 'Complete all required fields to save.'
+                    : !hasChanges
+                      ? 'Change at least one field before saving.'
+                      : undefined
+                }
+              >
+                <Save className="mr-2 size-4" />
+                {saving
+                  ? isEditing
+                    ? 'Updating...'
+                    : 'Saving...'
+                  : isEditing
+                    ? 'Update User'
+                    : 'Save User'}
+              </Button>
+            </div>
+            {!requiredFieldsComplete ? (
+              <p className="text-right text-sm text-muted-foreground">
+                Complete all required fields to enable saving.
+              </p>
+            ) : isEditing && !hasChanges ? (
+              <p className="text-right text-sm text-muted-foreground">
+                Make a change to enable updating this user.
+              </p>
+            ) : null}
+          </form>
+        )}
       </div>
     </main>
   );
