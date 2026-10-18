@@ -47,3 +47,21 @@ export interface CreateUserInput {
   address: Required<UserAddress>;
   profileImage: string | null;
 }
+
+export interface UserFormValues {
+  firstName: string;
+  lastName: string;
+  username: string;
+  dob: string;
+  gender: string;
+  email: string;
+  primaryMobile: string;
+  alternateMobile: string;
+  building: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  profileImage: string;
+}
