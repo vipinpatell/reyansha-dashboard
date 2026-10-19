@@ -15,14 +15,16 @@ export default function UserFormSection({
   children,
 }: UserFormSectionProps) {
   return (
-    <section className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex items-start gap-3 border-b p-5 sm:p-6">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <section className="overflow-hidden rounded-sm border bg-card shadow-sm">
+      <div className="flex items-start gap-3 border-b bg-muted/20 p-5 sm:p-6">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Icon className="size-5" />
         </div>
-        <div>
-          <h2 className="font-semibold">{title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <div className="min-w-0">
+          <h2 className="font-semibold tracking-tight">{title}</h2>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            {description}
+          </p>
         </div>
       </div>
 

@@ -23,8 +23,8 @@ const segmentLabels: Record<string, string> = {
   ads: 'Advertising',
 };
 
-function formatSegment(segment: string, index: number, segments: string[]) {
-  if (/^\d+$/.test(segment)) {
+function formatSegment(segment: string) {
+  if (/^\d+$/.test(segment) || /^[a-f\d]{24}$/i.test(segment)) {
     return 'User Details';
   }
 
@@ -60,7 +60,7 @@ export default function Breadcrumbs() {
         {segments.map((segment, index) => {
           const href = '/' + segments.slice(0, index + 1).join('/');
           const isLast = index === segments.length - 1;
-          const label = formatSegment(segment, index, segments);
+          const label = formatSegment(segment);
 
           return (
             <li key={href} className="flex items-center gap-2">

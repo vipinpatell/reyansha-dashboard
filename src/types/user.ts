@@ -17,8 +17,14 @@ export interface UserAddress {
   country?: string;
 }
 
+export interface UserEmergencyContact {
+  name: string;
+  phone: string;
+}
+
 export interface User {
   _id: string;
+  prefix?: string | null;
   name: UserName;
   username?: string;
   dob?: string | null;
@@ -27,28 +33,56 @@ export interface User {
   email?: string;
   address?: UserAddress;
   profileImage?: string | null;
+  designation?: string | null;
+  userType?: string | null;
+  department?: string | null;
+  employeeId?: string | null;
+  reportingManager?: string | null;
+  joiningDate?: string | null;
+  employmentType?: string | null;
+  workLocation?: string | null;
+  tags?: string[];
+  notes?: string | null;
+  emergencyContact?: UserEmergencyContact | null;
+  alternateContactEmail?: string | null;
+  skills?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface CreateUserInput {
+  prefix?: string | null;
   name: {
     firstName: string;
     lastName: string;
   };
   username: string;
-  dob: string | null;
+  dob: string;
   gender: string;
   mobile: {
     primary: string;
-    alternate: string;
+    alternate: string | null;
   };
   email: string;
   address: Required<UserAddress>;
   profileImage: string | null;
+  designation?: string | null;
+  userType?: string | null;
+  department?: string | null;
+  employeeId?: string | null;
+  reportingManager?: string | null;
+  joiningDate?: string | null;
+  employmentType?: string | null;
+  workLocation?: string | null;
+  tags?: string[];
+  notes?: string | null;
+  emergencyContact?: UserEmergencyContact | null;
+  alternateContactEmail?: string | null;
+  skills?: string[];
 }
 
 export interface UserFormValues {
+  prefix: string;
   firstName: string;
   lastName: string;
   username: string;
@@ -64,4 +98,18 @@ export interface UserFormValues {
   postalCode: string;
   country: string;
   profileImage: string;
+  designation: string;
+  userType: string;
+  department: string;
+  employeeId: string;
+  reportingManager: string;
+  joiningDate: string;
+  employmentType: string;
+  workLocation: string;
+  tags: string;
+  notes: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  alternateContactEmail: string;
+  skills: string;
 }

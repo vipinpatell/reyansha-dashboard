@@ -8,7 +8,7 @@ interface UserFormFieldProps {
 }
 
 export const userInputClass =
-  'h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition focus:ring-2 focus:ring-ring';
+  'h-11 w-full rounded-sm border border-input bg-background px-3 text-sm  outline-none transition placeholder:text-muted-foreground/70 hover:border-ring/60 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50';
 
 export default function UserFormField({
   id,
@@ -18,17 +18,13 @@ export default function UserFormField({
 }: UserFormFieldProps) {
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className="mb-2 block text-sm font-medium">
-        {label}
-        <span
-          className={
-            required
-              ? 'ml-2 text-xs font-normal text-destructive'
-              : 'ml-2 text-xs font-normal text-muted-foreground'
-          }
-        >
-          {required ? 'Required' : 'Optional'}
-        </span>
+      <label htmlFor={id} className="mb-2 flex min-h-5 items-center gap-1.5 text-sm font-medium">
+        <span>{label}</span>
+        {required ? (
+          <span aria-label="required" className="text-destructive">
+            *
+          </span>
+        ) : null}
       </label>
       {children}
     </div>

@@ -38,6 +38,9 @@ function parseUser(value: unknown, index?: number): User {
 
   const mobile = isRecord(value.mobile) ? value.mobile : undefined;
   const address = isRecord(value.address) ? value.address : undefined;
+  const emergencyContact = isRecord(value.emergencyContact)
+    ? value.emergencyContact
+    : undefined;
   const dob =
     typeof value.dob === 'string' || value.dob === null ? value.dob : undefined;
   const profileImage =
@@ -47,6 +50,7 @@ function parseUser(value: unknown, index?: number): User {
 
   return {
     _id: value._id,
+    prefix: optionalString(value, 'prefix'),
     name: {
       firstName: optionalString(value.name, 'firstName'),
       lastName: optionalString(value.name, 'lastName'),
@@ -72,6 +76,31 @@ function parseUser(value: unknown, index?: number): User {
         }
       : undefined,
     profileImage,
+    designation: optionalString(value, 'designation'),
+    userType: optionalString(value, 'userType'),
+    department: optionalString(value, 'department'),
+    employeeId: optionalString(value, 'employeeId'),
+    reportingManager: optionalString(value, 'reportingManager'),
+    joiningDate: optionalString(value, 'joiningDate'),
+    employmentType: optionalString(value, 'employmentType'),
+    workLocation: optionalString(value, 'workLocation'),
+    tags: Array.isArray(value.tags)
+      ? value.tags.filter((tag): tag is string => typeof tag === 'string')
+      : undefined,
+    notes: optionalString(value, 'notes'),
+    emergencyContact:
+      emergencyContact &&
+      typeof emergencyContact.name === 'string' &&
+      typeof emergencyContact.phone === 'string'
+        ? {
+            name: emergencyContact.name,
+            phone: emergencyContact.phone,
+          }
+        : undefined,
+    alternateContactEmail: optionalString(value, 'alternateContactEmail'),
+    skills: Array.isArray(value.skills)
+      ? value.skills.filter((skill): skill is string => typeof skill === 'string')
+      : undefined,
     createdAt: optionalString(value, 'createdAt'),
     updatedAt: optionalString(value, 'updatedAt'),
   };
