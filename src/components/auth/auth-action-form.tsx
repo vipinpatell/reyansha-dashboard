@@ -107,7 +107,7 @@ export default function AuthActionForm({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
-      <HeaderContainer />
+      <HeaderContainer loadAccount={false} />
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <section className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
           <div className="mb-7 text-center">

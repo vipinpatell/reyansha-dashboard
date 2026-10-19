@@ -31,6 +31,7 @@ interface HeaderProps {
   user?: {
     name: string;
     image?: string | null;
+    userType?: string;
   };
   onMenuClick?: () => void;
   onProfileClick?: () => void;
@@ -43,7 +44,7 @@ const getMountSnapshot = () => true;
 const getServerMountSnapshot = () => false;
 
 export default function Header({
-  user = { name: 'Admin User', image: null },
+  user = { name: 'Account', image: null, userType: 'Not signed in' },
   onMenuClick,
   onProfileClick,
   onSettingsClick,
@@ -128,8 +129,13 @@ export default function Header({
               </AvatarFallback>
             </Avatar>
 
-            <span className="hidden max-w-32 truncate text-sm font-medium sm:block">
-              {user.name}
+            <span className="hidden min-w-0 text-left sm:block">
+              <span className="block max-w-36 truncate text-sm font-medium">
+                {user.name}
+              </span>
+              <span className="block max-w-36 truncate text-xs text-muted-foreground">
+                {user.userType || 'User'}
+              </span>
             </span>
 
             <ChevronDown className="hidden size-4 text-muted-foreground sm:block" />
@@ -153,7 +159,7 @@ export default function Header({
                       {user.name}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Administrator
+                      {user.userType || 'User'}
                     </p>
                   </div>
                 </div>
