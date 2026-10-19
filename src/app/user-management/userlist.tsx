@@ -2,19 +2,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   Search,
   UserRound,
-  Eye,
-  Pencil,
-  MapPin,
   Download,
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
 
-import { Button, buttonVariants } from '@/components/ui/button';
+import DataTable from '@/components/shared/data-table';
+import { userColumns } from '@/components/shared/user-management/user-columns';
+import { Button } from '@/components/ui/button';
 import { getUsers } from '@/lib/api/users';
 import { formatUserDate, getUserFullName } from '@/lib/user-format';
 import type { User } from '@/types/user';
@@ -170,7 +168,7 @@ export default function UserList() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search name, email, mobile..."
               aria-label="Search users"
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="h-8 w-full border border-input bg-background pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
@@ -223,133 +221,24 @@ export default function UserList() {
         </div>
       )}
 
-      {/* Users table */}
+      {/* User data table */}
       {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="bg-muted/50 text-muted-foreground">
-              <tr>
-                <th className="px-5 py-4 font-medium">User</th>
-                <th className="px-5 py-4 font-medium">Mobile</th>
-                <th className="px-5 py-4 font-medium">Gender</th>
-                <th className="px-5 py-4 font-medium">Date of Birth</th>
-                <th className="px-5 py-4 font-medium">Location</th>
-                <th className="px-5 py-4 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-border">
-              {filteredUsers.map((user) => (
-                <tr
-                  key={user._id}
-                  className="transition-colors hover:bg-muted/30"
-                >
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary">
-                        {user.profileImage ? (
-                          <img
-                            src={user.profileImage}
-                            alt={getUserFullName(user)}
-                            className="size-full object-cover"
-                          />
-                        ) : (
-                          <UserRound className="size-5" />
-                        )}
-                      </div>
-
-                      <div>
-                        <p className="font-medium">{getUserFullName(user) || '—'}</p>
-                        <p className="text-muted-foreground">
-                          {user.email || '—'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          @{user.username || '—'}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <p>{user.mobile?.primary || '—'}</p>
-                    {user.mobile?.alternate && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {user.mobile.alternate}
-                      </p>
-                    )}
-                  </td>
-
-                  <td className="px-5 py-4 capitalize">
-                    {user.gender || '—'}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    {formatUserDate(user.dob)}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                      <div>
-                        <p>
-                          {[user.address?.city, user.address?.state]
-                            .filter(Boolean)
-                            .join(', ') || '—'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {[user.address?.country, user.address?.postalCode]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <Link
-                        href={`/user-management/${user._id}`}
-                        className={buttonVariants({
-                          variant: 'outline',
-                          size: 'sm',
-                        })}
-                        title={`View ${getUserFullName(user) || 'user'} details`}   
-                      >
-                        <Eye className="mr-2 size-4" />
-                        
-                      </Link>
-                      <Link
-                        href={`/user-management/${user._id}/edit`}
-                        className={buttonVariants({
-                          variant: 'outline',
-                          size: 'icon-sm',
-                        })}
-                        aria-label={`Edit ${getUserFullName(user) || 'user'}`}
-                        title={`Edit ${getUserFullName(user) || 'user'}`}
-                      >
-                        <Pencil className="size-4" />
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
-                    <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
-                    <p className="font-medium">No users found</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {users.length === 0
-                        ? 'No users have been returned by the API.'
-                        : 'Try another search term.'}
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          ariaLabel="Users"
+          columns={userColumns}
+          data={filteredUsers}
+          emptyState={
+            <div>
+              <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
+              <p className="font-medium">No users found</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {users.length === 0
+                  ? 'No users have been returned by the API.'
+                  : 'Try another search term.'}
+              </p>
+            </div>
+          }
+        />
       )}
     </section>
   );
