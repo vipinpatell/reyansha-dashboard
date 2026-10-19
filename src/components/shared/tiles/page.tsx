@@ -9,6 +9,7 @@ import {
   Code2,
   Megaphone,
   BrainCircuit,
+  Activity,
 } from 'lucide-react';
 
 import ModuleTile from './module-tile';
@@ -25,6 +26,12 @@ const modules = [
     description: 'Manage roles and user permissions.',
     href: '/roles',
     icon: ShieldCheck,
+  },
+  {
+    name: 'API Health',
+    description: 'Check API availability and connectivity.',
+    href: '/health',
+    icon: Activity,
   },
   {
     name: 'Learning Management',

@@ -16,7 +16,7 @@ import {
 import UserProfileFields from '@/components/shared/user-management/user-profile-fields';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { createUser, getUserById, updateUser } from '@/lib/api/users';
+import { createUser, getUserById, replaceUser } from '@/lib/api/users';
 import { userOptions } from '@/lib/user-options';
 import type { CreateUserInput, User, UserFormValues } from '@/types/user';
 
@@ -382,7 +382,7 @@ export default function UserForm({ userId }: UserFormProps) {
 
     try {
       if (userId) {
-        await updateUser(userId, payload);
+        await replaceUser(userId, payload);
       } else {
         await createUser(payload);
       }

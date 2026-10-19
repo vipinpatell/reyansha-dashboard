@@ -1,22 +1,5 @@
+import { apiRequest, isRecord, unwrapData } from '@/lib/api/client';
 import type { CreateUserInput, User } from '@/types/user';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '');
-
-let usersRequest: Promise<User[]> | null = null;
-
-function getApiUrl() {
-  if (!API_URL) {
-    throw new Error(
-      'API URL is missing. Configure NEXT_PUBLIC_API_URL in .env.local.',
-    );
-  }
-
-  return API_URL;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function optionalString(
   record: Record<string, unknown>,
@@ -41,12 +24,6 @@ function parseUser(value: unknown, index?: number): User {
   const emergencyContact = isRecord(value.emergencyContact)
     ? value.emergencyContact
     : undefined;
-  const dob =
-    typeof value.dob === 'string' || value.dob === null ? value.dob : undefined;
-  const profileImage =
-    typeof value.profileImage === 'string' || value.profileImage === null
-      ? value.profileImage
-      : undefined;
 
   return {
     _id: value._id,
@@ -56,7 +33,10 @@ function parseUser(value: unknown, index?: number): User {
       lastName: optionalString(value.name, 'lastName'),
     },
     username: optionalString(value, 'username'),
-    dob,
+    dob:
+      typeof value.dob === 'string' || value.dob === null
+        ? value.dob
+        : undefined,
     gender: optionalString(value, 'gender'),
     mobile: mobile
       ? {
@@ -75,7 +55,10 @@ function parseUser(value: unknown, index?: number): User {
           country: optionalString(address, 'country'),
         }
       : undefined,
-    profileImage,
+    profileImage:
+      typeof value.profileImage === 'string' || value.profileImage === null
+        ? value.profileImage
+        : undefined,
     designation: optionalString(value, 'designation'),
     userType: optionalString(value, 'userType'),
     department: optionalString(value, 'department'),
@@ -101,100 +84,85 @@ function parseUser(value: unknown, index?: number): User {
     skills: Array.isArray(value.skills)
       ? value.skills.filter((skill): skill is string => typeof skill === 'string')
       : undefined,
+    roles: Array.isArray(value.roles)
+      ? value.roles.filter((role): role is string => typeof role === 'string')
+      : undefined,
+    isActive:
+      typeof value.isActive === 'boolean' ? value.isActive : undefined,
     createdAt: optionalString(value, 'createdAt'),
     updatedAt: optionalString(value, 'updatedAt'),
   };
 }
 
-async function request(path: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(`${getApiUrl()}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
-    cache: 'no-store',
-  });
-
-  const text = await response.text();
-  let result: unknown = text;
-
-  if (text) {
-    try {
-      result = JSON.parse(text) as unknown;
-    } catch {
-      if (response.ok) {
-        return text;
-      }
-    }
-  }
-
-  if (!response.ok) {
-    const message =
-      isRecord(result) && typeof result.message === 'string'
-        ? ` ${result.message}`
-        : '';
-    throw new Error(`API request failed (${response.status}).${message}`);
-  }
-
-  return result;
-}
-
 function getCollection(result: unknown): unknown {
-  if (Array.isArray(result)) return result;
+  const data = unwrapData(result);
+  if (Array.isArray(data)) return data;
 
-  if (isRecord(result)) {
-    const collection = result.data ?? result.users ?? result.items;
+  if (isRecord(data)) {
+    const collection = data.users ?? data.items;
     if (collection !== undefined) return collection;
   }
 
   throw new Error('Unexpected API response. Expected an array of users.');
 }
 
-export function getUsers(): Promise<User[]> {
-  if (!usersRequest) {
-    usersRequest = request('/users')
-      .then(getCollection)
-      .then((result) => {
-        if (!Array.isArray(result)) {
-          throw new Error('Unexpected API response. Expected an array of users.');
-        }
+export async function getUsers(): Promise<User[]> {
+  const result = await apiRequest<unknown>('/users');
+  const collection = getCollection(result);
 
-        return result.map((user, index) => parseUser(user, index));
-      })
-      .finally(() => {
-        usersRequest = null;
-      });
+  if (!Array.isArray(collection)) {
+    throw new Error('Unexpected API response. Expected an array of users.');
   }
 
-  return usersRequest;
+  return collection.map((user, index) => parseUser(user, index));
 }
 
 export async function getUserById(id: string): Promise<User> {
-  const users = await getUsers();
-  const user = users.find((item) => item._id === id);
-
-  if (!user) {
-    throw new Error(`User ${id} was not found.`);
-  }
-
-  return user;
+  const result = unwrapData(
+    await apiRequest<unknown>(`/users/${encodeURIComponent(id)}`),
+  );
+  return parseUser(result);
 }
 
 export async function createUser(user: CreateUserInput): Promise<void> {
-  await request('/users', {
+  await apiRequest('/users', {
     method: 'POST',
+    body: JSON.stringify(user),
+  });
+}
+
+export async function replaceUser(
+  id: string,
+  user: CreateUserInput,
+): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}`, {
+    method: 'PUT',
     body: JSON.stringify(user),
   });
 }
 
 export async function updateUser(
   id: string,
-  user: CreateUserInput,
+  user: Partial<CreateUserInput>,
 ): Promise<void> {
-  await request(`/users/${encodeURIComponent(id)}`, {
+  await apiRequest(`/users/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(user),
+  });
+}
+
+export async function updateUserRoles(
+  id: string,
+  roles: string[],
+): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}/roles`, {
+    method: 'PATCH',
+    body: JSON.stringify({ roles }),
+  });
+}
+
+export async function deactivateUser(id: string): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}/deactivate`, {
+    method: 'PATCH',
   });
 }

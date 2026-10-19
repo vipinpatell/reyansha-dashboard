@@ -46,6 +46,8 @@ export interface User {
   emergencyContact?: UserEmergencyContact | null;
   alternateContactEmail?: string | null;
   skills?: string[];
+  roles?: string[];
+  isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

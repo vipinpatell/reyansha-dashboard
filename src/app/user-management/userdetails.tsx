@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import {
   ArrowLeft,
   UserRound,
@@ -17,11 +17,18 @@ import {
   BriefcaseBusiness,
   ContactRound,
   Pencil,
+  ShieldCheck,
+  UserX,
 } from 'lucide-react';
 import Link from 'next/link';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { getUserById } from '@/lib/api/users';
+import {
+  deactivateUser,
+  getUserById,
+  updateUserRoles,
+} from '@/lib/api/users';
+import { getRoles } from '@/lib/api/roles';
 import { userOptions } from '@/lib/user-options';
 import {
   formatUserDate,
@@ -29,6 +36,7 @@ import {
   getUserFullName,
 } from '@/lib/user-format';
 import type { User } from '@/types/user';
+import type { Role } from '@/types/role';
 
 interface UserDetailsProps {
   id: string;
@@ -39,13 +47,23 @@ export default function UserDetails({ id }: UserDetailsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
 
   useEffect(() => {
     let active = true;
 
     getUserById(id)
       .then((result) => {
-        if (active) setUser(result);
+        if (active) {
+          setUser(result);
+          setSelectedRoles(result.roles ?? []);
+        }
       })
       .catch((requestError: unknown) => {
         if (active) {
@@ -64,6 +82,76 @@ export default function UserDetails({ id }: UserDetailsProps) {
       active = false;
     };
   }, [id, retryCount]);
+
+  useEffect(() => {
+    let active = true;
+    getRoles()
+      .then((result) => {
+        if (active) setRoles(result);
+      })
+      .catch((requestError: unknown) => {
+        if (active) {
+          setActionError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to load roles.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setRolesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function saveRoles() {
+    if (!user) return;
+    setActionError('');
+    setActionNotice('');
+    setSavingRoles(true);
+    try {
+      await updateUserRoles(user._id, selectedRoles);
+      setUser({ ...user, roles: selectedRoles });
+      setActionNotice('User roles updated.');
+    } catch (requestError) {
+      setActionError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to update user roles.',
+      );
+    } finally {
+      setSavingRoles(false);
+    }
+  }
+
+  async function deactivate() {
+    if (!user || !window.confirm(`Deactivate ${getUserFullName(user)}?`)) return;
+    setActionError('');
+    setActionNotice('');
+    setDeactivating(true);
+    try {
+      await deactivateUser(user._id);
+      setUser({ ...user, isActive: false });
+      setActionNotice('User deactivated.');
+    } catch (requestError) {
+      setActionError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to deactivate this user.',
+      );
+    } finally {
+      setDeactivating(false);
+    }
+  }
+
+  function handleRoleChange(event: ChangeEvent<HTMLSelectElement>) {
+    setSelectedRoles(
+      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+    );
+  }
 
   if (loading) {
     return (
@@ -123,6 +211,18 @@ export default function UserDetails({ id }: UserDetailsProps) {
     <main className="flex-1 bg-muted/30 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-5">
         <Breadcrumbs />
+        {(actionError || actionNotice) && (
+          <p
+            role={actionError ? 'alert' : 'status'}
+            className={`rounded-md border p-3 text-sm ${
+              actionError
+                ? 'border-destructive/30 text-destructive'
+                : 'border-primary/30'
+            }`}
+          >
+            {actionError || actionNotice}
+          </p>
+        )}
 
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div
@@ -146,6 +246,13 @@ export default function UserDetails({ id }: UserDetailsProps) {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 User profile
               </p>
+              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                user.isActive === false
+                  ? 'bg-destructive/10 text-destructive'
+                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+              }`}>
+                {user.isActive === false ? 'Inactive' : 'Active'}
+              </span>
               <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
                 {fullName}
               </h1>
@@ -207,6 +314,56 @@ export default function UserDetails({ id }: UserDetailsProps) {
               value={formatOption(user.workLocation, userOptions.workLocations)}
             />
           </div>
+        </section>
+
+        <section className="rounded-xl border bg-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 size-5 text-primary" />
+              <div>
+                <h2 className="font-semibold">Access and status</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Assign roles to this account or deactivate it.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              disabled={deactivating || user.isActive === false}
+              onClick={() => void deactivate()}
+            >
+              <UserX className="mr-2 size-4" />
+              {deactivating ? 'Deactivating...' : user.isActive === false ? 'Inactive' : 'Deactivate user'}
+            </Button>
+          </div>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex-1 space-y-1.5 text-sm font-medium">
+              User roles
+              <select
+                multiple
+                size={Math.min(Math.max(roles.length, 2), 6)}
+                disabled={rolesLoading || roles.length === 0}
+                value={selectedRoles}
+                onChange={handleRoleChange}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                {roles.map((role) => (
+                  <option key={role.key} value={role.key}>
+                    {role.name || role.key}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs font-normal text-muted-foreground">
+                Hold Ctrl (Windows) or Command (Mac) to select multiple roles.
+              </span>
+            </label>
+            <Button onClick={() => void saveRoles()} disabled={rolesLoading || savingRoles}>
+              {savingRoles ? 'Saving...' : 'Save roles'}
+            </Button>
+          </div>
+          {!rolesLoading && roles.length === 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">No roles are available to assign.</p>
+          )}
         </section>
 
         <div className="grid items-start gap-5 xl:grid-cols-2">
