@@ -43,7 +43,7 @@ export default function RootLayout({
         'font-sans',
       )}
     >
-      <body className="flex min-h-full flex-col">
+      <body suppressHydrationWarning className="flex min-h-full flex-col">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
