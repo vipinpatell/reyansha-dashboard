@@ -7,16 +7,22 @@ import { ArrowLeft, KeyRound, LoaderCircle } from 'lucide-react';
 
 import Footer from '@/components/shared/footer/page';
 import HeaderContainer from '@/components/shared/header/header-container';
+import { useAuth } from './auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getApiErrorMessage } from '@/lib/api/client';
 import {
-  bootstrap,
+  PASSWORD_MAX_UTF8_BYTES,
+  PASSWORD_MIN_LENGTH,
+  validatePassword,
+} from '@/lib/password-validation';
+import {
   changePassword,
   requestPasswordReset,
   resetPassword,
 } from '@/lib/api/auth';
 
-export type AuthAction = 'forgot' | 'reset' | 'change' | 'bootstrap';
+export type AuthAction = 'forgot' | 'reset' | 'change';
 
 const config: Record<
   AuthAction,
@@ -37,28 +43,21 @@ const config: Record<
     description: 'Update the password for your signed-in account.',
     submit: 'Change password',
   },
-  bootstrap: {
-    title: 'Set up administrator',
-    description: 'Create the initial administrator account for the API.',
-    submit: 'Create administrator',
-  },
 };
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Unable to complete the request.';
-}
 
 export default function AuthActionForm({
   mode,
   initialToken = '',
+  forced = false,
 }: {
   mode: AuthAction;
   initialToken?: string;
+  forced?: boolean;
 }) {
   const router = useRouter();
+  const { clearAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [token, setToken] = useState(initialToken);
-  const [name, setName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -70,6 +69,13 @@ export default function AuthActionForm({
     event.preventDefault();
     setError('');
     setSuccess('');
+    if (mode !== 'forgot') {
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setError(passwordError);
+        return;
+      }
+    }
     if (mode !== 'forgot' && password !== confirmPassword) {
       setError('The new password and confirmation do not match.');
       return;
@@ -81,29 +87,33 @@ export default function AuthActionForm({
         await requestPasswordReset(email);
         setSuccess('If the account exists, a password reset link has been sent.');
       } else if (mode === 'reset') {
-        await resetPassword({ token, password });
+        await resetPassword({ token, newPassword: password });
         setSuccess('Password reset successfully. You can now sign in.');
       } else if (mode === 'change') {
         await changePassword({ currentPassword, newPassword: password });
-        setSuccess('Password changed successfully.');
-      } else {
-        await bootstrap({ name, email, password });
-        setSuccess('Administrator account created.');
+        setSuccess('Password changed. Your session has ended; sign in again with your new password.');
+        clearAuth(true);
+        window.setTimeout(() => router.replace('/login?passwordChanged=1'), 1200);
       }
       setCurrentPassword('');
       setPassword('');
       setConfirmPassword('');
-      if (mode === 'bootstrap') {
-        window.setTimeout(() => router.push('/'), 1200);
-      }
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      setError(getApiErrorMessage(requestError));
     } finally {
       setSubmitting(false);
     }
   }
 
-  const page = config[mode];
+  const page =
+    mode === 'change' && forced
+      ? {
+          ...config.change,
+          title: 'Change your temporary password',
+          description:
+            'You must update your temporary password before continuing to the dashboard.',
+        }
+      : config[mode];
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
@@ -119,13 +129,7 @@ export default function AuthActionForm({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'bootstrap' && (
-              <label className="block space-y-2 text-sm font-medium">
-                Name
-                <Input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
-              </label>
-            )}
-            {(mode === 'forgot' || mode === 'bootstrap') && (
+            {mode === 'forgot' && (
               <label className="block space-y-2 text-sm font-medium">
                 Email address
                 <Input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
@@ -149,16 +153,20 @@ export default function AuthActionForm({
                   {mode === 'change' ? 'New password' : 'Password'}
                   <Input
                     required
-                    minLength={8}
+                    minLength={PASSWORD_MIN_LENGTH}
+                    maxLength={PASSWORD_MAX_UTF8_BYTES}
                     type="password"
-                    autoComplete={mode === 'change' ? 'new-password' : 'new-password'}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                   />
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    At least 12 characters and no more than 72 UTF-8 bytes.
+                  </span>
                 </label>
                 <label className="block space-y-2 text-sm font-medium">
                   Confirm password
-                  <Input required minLength={8} type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+                  <Input required minLength={PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_UTF8_BYTES} type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
                 </label>
               </>
             )}

@@ -1,44 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { RefreshCw, UserRound } from 'lucide-react';
 
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import Footer from '@/components/shared/footer/page';
 import HeaderContainer from '@/components/shared/header/header-container';
 import { Button } from '@/components/ui/button';
-import { getCurrentUser, refreshSession } from '@/lib/api/auth';
+import { refreshSession } from '@/lib/api/auth';
+import { useAuth } from '@/components/auth/auth-provider';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<unknown>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, refreshUser } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    getCurrentUser()
-      .then((currentUser) => {
-        if (active) setUser(currentUser);
-      })
-      .catch((requestError: unknown) => {
-        if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to load the signed-in account.',
-          );
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -46,14 +23,10 @@ export default function ProfilePage() {
     setNotice('');
     try {
       await refreshSession();
-      setUser(await getCurrentUser());
+      await refreshUser();
       setNotice('Session refreshed.');
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to refresh the session.',
-      );
+      setError(getApiErrorMessage(requestError));
     } finally {
       setRefreshing(false);
     }
@@ -87,13 +60,33 @@ export default function ProfilePage() {
           ) : user === null ? (
             <p className="text-sm text-muted-foreground">No account data is available.</p>
           ) : (
-            <pre className="overflow-auto rounded-lg bg-muted p-4 text-xs">
-              {JSON.stringify(user, null, 2)}
-            </pre>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <ProfileField label="Name" value={user.name} />
+              <ProfileField label="Email" value={user.email} />
+              <ProfileField label="Username" value={user.username} />
+              <ProfileField label="User type" value={user.userType} />
+              <ProfileField
+                label="Roles"
+                value={user.roles.map((role) => role.name || role.key).filter(Boolean).join(', ')}
+              />
+              <ProfileField
+                label="Permissions"
+                value={user.permissions.join(', ')}
+              />
+            </dl>
           )}
         </section>
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function ProfileField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium">{value || '—'}</dd>
     </div>
   );
 }

@@ -2,34 +2,45 @@
 
 Next.js dashboard for the Reyansha API.
 
-## Configure the API
+## Local development
 
-Create `.env.local` in the project root:
+Configure the API origin in `.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
-The client adds `/api/v1` unless the configured URL already ends with that path. The API described in the dashboard documentation listens on port `3000`; the dashboard development and production servers therefore use port `3001`.
-
-Install dependencies and start the dashboard:
+The client appends `/api/v1` unless the value already ends with that prefix. The dashboard runs on port `3001`, separate from the API on port `3000`. The API must allow the dashboard origin and its session-cookie credentials through CORS.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001). The API must be running and permit requests from the dashboard origin. Authentication requests include cookies and use a bearer access token when the API returns one.
+Open [http://localhost:3001](http://localhost:3001). API documentation is available at [http://localhost:3000/docs](http://localhost:3000/docs) and `/docs-json`.
 
-## Integrated API workflows
+## Authentication and access control
 
-| API area | Dashboard route | Operations |
-| --- | --- | --- |
-| Authentication | `/login`, `/profile`, `/change-password`, `/forgot-password`, `/reset-password`, `/bootstrap` | Login/logout, current account, refresh, change/reset password, bootstrap |
-| Users | `/user-management` | List, create, read, replace/edit, assign roles, deactivate |
-| Roles | `/roles` | List, create, update, delete |
-| Health | `/health` | Check service health |
+The API authenticates the dashboard with the HttpOnly `reyansha_session` cookie. Browser requests use `credentials: 'include'`; the frontend does not read, store, or send session tokens. The server is authoritative for all permissions.
 
-User edits send `PUT /users/:id`; `PATCH /users/:id` is also available from the API client for partial updates. Role assignments send `{ "roles": ["role-key"] }`. Password reset requests send an email; reset submissions send `{ "token": "...", "password": "..." }`. The API client reports non-success HTTP responses in the dashboard.
+The dashboard loads `GET /api/v1/auth/me` for the current profile, assigned roles, permissions, and `mustChangePassword` state. A 401 clears in-memory account state and redirects to sign-in. A forced password change gates normal dashboard routes until the user changes their password. Successful password changes end the session and require another sign-in.
 
-The base URL can point either to the API origin (for example `http://localhost:3000`) or directly to its versioned prefix (`http://localhost:3000/api/v1`).
+Sign-in accepts an email or username and a password. Password changes and resets require at least 12 characters and at most 72 UTF-8 bytes. Forgot-password and reset-password pages are available without a session. Public signup/bootstrap UI is not provided.
+
+## Dashboard routes and API operations
+
+| Dashboard route | API workflows |
+| --- | --- |
+| `/login` | `POST /auth/login`, `GET /auth/me` |
+| `/profile` | `GET /auth/me`, `POST /auth/refresh` |
+| `/change-password` | `POST /auth/change-password` |
+| `/forgot-password`, `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password` |
+| `/user-management` | List, create, read, replace, partial update, role assignment, deactivate and authorized admin password set |
+| `/roles` | List, create, update and delete roles |
+| `/health` | API health check |
+
+Role assignment sends `{ "roleIds": ["<MongoDB role id>"] }`. User administration password setting sends only `{ "password": "..." }` to `PATCH /api/v1/users/:id/password`; the UI exposes it only when `/auth/me` reports both the exact `super_admin` role and `roles.manage`. The backend remains authoritative and requires the user to change that temporary password on their next sign-in.
+
+Navigation and actions are filtered using the current account’s API-provided permissions. The API enforces access, including limited direct-report access, regardless of what the UI displays.
+
+The live Swagger document does not define response schemas for user listing/details or the deactivate operation. The dashboard treats a successful deactivate response as accepted but cannot persistently display disabled/suspended row status or distinguish suspension until the API documents and returns those fields.

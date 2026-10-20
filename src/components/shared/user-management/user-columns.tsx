@@ -1,14 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { Eye, MapPin, Pencil, UserRound } from 'lucide-react';
+import { Eye, KeyRound, MapPin, Pencil, UserRound } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { buttonVariants } from '@/components/ui/button';
-import { formatUserDate, getUserFullName } from '@/lib/user-format';
+import {
+  formatUserDate,
+  getUserFullName,
+} from '@/lib/user-format';
 import type { User } from '@/types/user';
+import { canSetUserPassword, hasPermission } from '@/lib/auth-permissions';
+import type { AuthUser } from '@/types/auth';
 
-export const userColumns: ColumnDef<User>[] = [
+export function createUserColumns(currentUser: AuthUser | null): ColumnDef<User>[] {
+  return [
   {
     id: 'user',
     accessorFn: (user) => getUserFullName(user),
@@ -112,6 +118,11 @@ export const userColumns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       const user = row.original;
       const name = getUserFullName(user) || 'user';
+      const canEdit =
+        hasPermission(currentUser, 'users.update') ||
+        (currentUser?.id === user._id &&
+          hasPermission(currentUser, 'users.update_own'));
+      const canSetPassword = canSetUserPassword(currentUser);
 
       return (
         <div className="flex justify-end gap-2">
@@ -123,16 +134,29 @@ export const userColumns: ColumnDef<User>[] = [
           >
             <Eye className="size-4" />
           </Link>
-          <Link
-            href={`/user-management/${user._id}/edit`}
-            className={buttonVariants({ variant: 'outline', size: 'icon-sm' })}
-            aria-label={`Edit ${name}`}
-            title={`Edit ${name}`}
-          >
-            <Pencil className="size-4" />
-          </Link>
+          {canEdit && (
+            <Link
+              href={`/user-management/${user._id}/edit`}
+              className={buttonVariants({ variant: 'outline', size: 'icon-sm' })}
+              aria-label={`Edit ${name}`}
+              title={`Edit ${name}`}
+            >
+              <Pencil className="size-4" />
+            </Link>
+          )}
+          {canSetPassword && (
+            <Link
+              href={`/user-management/${user._id}/password`}
+              className={buttonVariants({ variant: 'outline', size: 'icon-sm' })}
+              aria-label={`Set temporary password for ${name}`}
+              title={`Set temporary password for ${name}`}
+            >
+              <KeyRound className="size-4" />
+            </Link>
+          )}
         </div>
       );
     },
   },
-];
+  ];
+}

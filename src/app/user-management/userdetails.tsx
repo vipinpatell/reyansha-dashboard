@@ -37,6 +37,9 @@ import {
 } from '@/lib/user-format';
 import type { User } from '@/types/user';
 import type { Role } from '@/types/role';
+import { useAuth } from '@/components/auth/auth-provider';
+import { hasPermission } from '@/lib/auth-permissions';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 interface UserDetailsProps {
   id: string;
@@ -44,16 +47,27 @@ interface UserDetailsProps {
 
 export default function UserDetails({ id }: UserDetailsProps) {
   const [user, setUser] = useState<User | null>(null);
+  const { user: currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[] | null>(null);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [savingRoles, setSavingRoles] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
+  const [deactivatedByAction, setDeactivatedByAction] = useState(false);
+  const canAssignRoles = hasPermission(currentUser, 'roles.manage');
+  const roleIdsForForm = user
+    ? selectedRoleIds ??
+      user.roleIds ??
+      (user.roles ?? [])
+        .map((roleKey) => roles.find((role) => role.key === roleKey))
+        .map((role) => role?._id ?? role?.id)
+        .filter((roleId): roleId is string => Boolean(roleId))
+    : [];
 
   useEffect(() => {
     let active = true;
@@ -62,16 +76,12 @@ export default function UserDetails({ id }: UserDetailsProps) {
       .then((result) => {
         if (active) {
           setUser(result);
-          setSelectedRoles(result.roles ?? []);
+          setSelectedRoleIds(result.roleIds ?? null);
         }
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to load this user.',
-          );
+          setError(getApiErrorMessage(requestError));
         }
       })
       .finally(() => {
@@ -84,6 +94,8 @@ export default function UserDetails({ id }: UserDetailsProps) {
   }, [id, retryCount]);
 
   useEffect(() => {
+    if (!canAssignRoles) return;
+
     let active = true;
     getRoles()
       .then((result) => {
@@ -91,11 +103,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setActionError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to load roles.',
-          );
+          setActionError(getApiErrorMessage(requestError));
         }
       })
       .finally(() => {
@@ -105,7 +113,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canAssignRoles]);
 
   async function saveRoles() {
     if (!user) return;
@@ -113,14 +121,13 @@ export default function UserDetails({ id }: UserDetailsProps) {
     setActionNotice('');
     setSavingRoles(true);
     try {
-      await updateUserRoles(user._id, selectedRoles);
-      setUser({ ...user, roles: selectedRoles });
+      await updateUserRoles(user._id, roleIdsForForm);
+      setSelectedRoleIds(roleIdsForForm);
+      setUser({ ...user, roleIds: roleIdsForForm });
       setActionNotice('User roles updated.');
     } catch (requestError) {
       setActionError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to update user roles.',
+        getApiErrorMessage(requestError),
       );
     } finally {
       setSavingRoles(false);
@@ -134,13 +141,13 @@ export default function UserDetails({ id }: UserDetailsProps) {
     setDeactivating(true);
     try {
       await deactivateUser(user._id);
-      setUser({ ...user, isActive: false });
-      setActionNotice('User deactivated.');
+      setDeactivatedByAction(true);
+      setActionNotice(
+        'The API accepted the deactivation request. Persistent account status is not included in the documented user response.',
+      );
     } catch (requestError) {
       setActionError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to deactivate this user.',
+        getApiErrorMessage(requestError),
       );
     } finally {
       setDeactivating(false);
@@ -148,7 +155,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
   }
 
   function handleRoleChange(event: ChangeEvent<HTMLSelectElement>) {
-    setSelectedRoles(
+    setSelectedRoleIds(
       Array.from(event.currentTarget.selectedOptions, (option) => option.value),
     );
   }
@@ -204,6 +211,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
   }
 
   const fullName = getUserFullName(user);
+  const isSelf = currentUser?.id === user._id;
   const address = user.address;
   const emergencyContact = user.emergencyContact;
 
@@ -247,11 +255,11 @@ export default function UserDetails({ id }: UserDetailsProps) {
                 User profile
               </p>
               <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                user.isActive === false
+                deactivatedByAction
                   ? 'bg-destructive/10 text-destructive'
-                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-muted text-muted-foreground'
               }`}>
-                {user.isActive === false ? 'Inactive' : 'Active'}
+                {deactivatedByAction ? 'Deactivation accepted' : 'Status unavailable'}
               </span>
               <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
                 {fullName}
@@ -280,13 +288,17 @@ export default function UserDetails({ id }: UserDetailsProps) {
               </div>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-              <Link
-                href={`/user-management/${user._id}/edit`}
-                className={buttonVariants()}
-              >
-                <Pencil className="mr-2 size-4" />
-                Edit User
-              </Link>
+              {(hasPermission(currentUser, 'users.update') ||
+                (currentUser?.id === user._id &&
+                  hasPermission(currentUser, 'users.update_own'))) && (
+                <Link
+                  href={`/user-management/${user._id}/edit`}
+                  className={buttonVariants()}
+                >
+                  <Pencil className="mr-2 size-4" />
+                  Edit User
+                </Link>
+              )}
               <Link
                 href="/user-management"
                 className={buttonVariants({ variant: 'ghost', size: 'sm' })}
@@ -327,42 +339,63 @@ export default function UserDetails({ id }: UserDetailsProps) {
                 </p>
               </div>
             </div>
-            <Button
-              variant="destructive"
-              disabled={deactivating || user.isActive === false}
-              onClick={() => void deactivate()}
-            >
-              <UserX className="mr-2 size-4" />
-              {deactivating ? 'Deactivating...' : user.isActive === false ? 'Inactive' : 'Deactivate user'}
-            </Button>
-          </div>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="flex-1 space-y-1.5 text-sm font-medium">
-              User roles
-              <select
-                multiple
-                size={Math.min(Math.max(roles.length, 2), 6)}
-                disabled={rolesLoading || roles.length === 0}
-                value={selectedRoles}
-                onChange={handleRoleChange}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            {hasPermission(currentUser, 'users.deactivate') && (
+              <Button
+                variant="destructive"
+                disabled={deactivating || deactivatedByAction}
+                onClick={() => void deactivate()}
               >
-                {roles.map((role) => (
-                  <option key={role.key} value={role.key}>
-                    {role.name || role.key}
-                  </option>
-                ))}
-              </select>
-              <span className="block text-xs font-normal text-muted-foreground">
-                Hold Ctrl (Windows) or Command (Mac) to select multiple roles.
-              </span>
-            </label>
-            <Button onClick={() => void saveRoles()} disabled={rolesLoading || savingRoles}>
-              {savingRoles ? 'Saving...' : 'Save roles'}
-            </Button>
+                <UserX className="mr-2 size-4" />
+                {deactivating
+                  ? 'Deactivating...'
+                  : deactivatedByAction
+                    ? 'Deactivation accepted'
+                    : 'Deactivate user'}
+              </Button>
+            )}
           </div>
-          {!rolesLoading && roles.length === 0 && (
-            <p className="mt-3 text-sm text-muted-foreground">No roles are available to assign.</p>
+          {canAssignRoles && !isSelf && (
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="flex-1 space-y-1.5 text-sm font-medium">
+                User roles
+                <select
+                  multiple
+                  size={Math.min(Math.max(roles.length, 2), 6)}
+                  disabled={rolesLoading || roles.length === 0}
+                  value={roleIdsForForm}
+                  onChange={handleRoleChange}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {roles.filter((role) => role._id || role.id).map((role) => {
+                    const roleId = role._id ?? role.id!;
+                    return (
+                      <option key={roleId} value={roleId}>
+                        {role.name || role.key}
+                      </option>
+                    );
+                  })}
+                </select>
+                <span className="block text-xs font-normal text-muted-foreground">
+                  Hold Ctrl (Windows) or Command (Mac) to select multiple roles.
+                </span>
+              </label>
+              <Button onClick={() => void saveRoles()} disabled={rolesLoading || savingRoles}>
+                {savingRoles ? 'Saving...' : 'Save roles'}
+              </Button>
+            </div>
+          )}
+          {canAssignRoles && !isSelf &&
+            !rolesLoading &&
+            roles.filter((role) => role._id || role.id).length === 0 && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                No roles with IDs are available to assign.
+              </p>
+            )}
+          {canAssignRoles && isSelf && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Role assignments for your own account are disabled. Ask another
+              authorized administrator to manage them.
+            </p>
           )}
         </section>
 

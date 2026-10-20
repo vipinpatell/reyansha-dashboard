@@ -4,6 +4,9 @@ import { Geist, Geist_Mono, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import ThemeProvider from '@/components/shared/theme-provider/theme-provider';
+import { Suspense } from 'react';
+import { AuthProvider } from '@/components/auth/auth-provider';
+import AuthGate from '@/components/auth/auth-gate';
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
@@ -47,7 +50,17 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AuthProvider>
+            <Suspense
+              fallback={
+                <main className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+                  Loading...
+                </main>
+              }
+            >
+              <AuthGate>{children}</AuthGate>
+            </Suspense>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -17,6 +17,7 @@ import UserProfileFields from '@/components/shared/user-management/user-profile-
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { createUser, getUserById, replaceUser } from '@/lib/api/users';
+import { getApiErrorMessage } from '@/lib/api/client';
 import { userOptions } from '@/lib/user-options';
 import type { CreateUserInput, User, UserFormValues } from '@/types/user';
 
@@ -293,11 +294,7 @@ export default function UserForm({ userId }: UserFormProps) {
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setLoadError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to load this user.',
-          );
+          setLoadError(getApiErrorMessage(requestError));
         }
       })
       .finally(() => {

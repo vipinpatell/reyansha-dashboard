@@ -3,17 +3,23 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { LockKeyhole, Mail, LoaderCircle } from 'lucide-react';
+import { LockKeyhole, UserRound, LoaderCircle } from 'lucide-react';
 
 import Footer from '@/components/shared/footer/page';
 import HeaderContainer from '@/components/shared/header/header-container';
+import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { login } from '@/lib/api/auth';
+import { getApiErrorMessage } from '@/lib/api/client';
 
-export default function LoginPage() {
+export default function LoginPage({
+  passwordChanged = false,
+}: {
+  passwordChanged?: boolean;
+}) {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const { signIn } = useAuth();
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -23,14 +29,12 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      await login({ email, password });
-      router.push('/');
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to sign in.',
+      const user = await signIn(identifier, password);
+      router.replace(
+        user.mustChangePassword ? '/change-password?forced=1' : '/dashboard',
       );
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
     } finally {
       setSubmitting(false);
     }
@@ -52,21 +56,27 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {passwordChanged && (
+            <p role="status" className="mb-4 rounded-md border border-primary/30 p-3 text-sm">
+              Password changed successfully. Sign in with your new password.
+            </p>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium">
-                Email address
+                Email or username
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <UserRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="email"
-                  type="email"
+                  type="text"
                   required
-                  autoComplete="email"
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="username"
+                  placeholder="name@company.com or username"
+                  value={identifier}
+                  onChange={(event) => setIdentifier(event.target.value)}
                   className="h-11 rounded-xl pl-9 text-sm"
                 />
               </div>
@@ -99,9 +109,6 @@ export default function LoginPage() {
           <div className="mt-6 flex flex-col gap-2 text-center text-sm">
             <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground">
               Forgot your password?
-            </Link>
-            <Link href="/bootstrap" className="text-muted-foreground hover:text-foreground">
-              Set up the first administrator
             </Link>
           </div>
         </section>

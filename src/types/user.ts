@@ -47,7 +47,7 @@ export interface User {
   alternateContactEmail?: string | null;
   skills?: string[];
   roles?: string[];
-  isActive?: boolean;
+  roleIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

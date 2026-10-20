@@ -11,17 +11,27 @@ import {
 } from 'lucide-react';
 
 import DataTable from '@/components/shared/data-table';
-import { userColumns } from '@/components/shared/user-management/user-columns';
+import { createUserColumns } from '@/components/shared/user-management/user-columns';
+import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { getUsers } from '@/lib/api/users';
-import { formatUserDate, getUserFullName } from '@/lib/user-format';
+import { getApiErrorMessage } from '@/lib/api/client';
+import {
+  formatUserDate,
+  getUserFullName,
+} from '@/lib/user-format';
 import type { User } from '@/types/user';
 
 export default function UserList() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const columns = useMemo(
+    () => createUserColumns(currentUser),
+    [currentUser],
+  );
 
   function refreshUsers() {
     setLoading(true);
@@ -30,11 +40,7 @@ export default function UserList() {
     getUsers()
       .then(setUsers)
       .catch((requestError: unknown) => {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to load users.',
-        );
+        setError(getApiErrorMessage(requestError));
       })
       .finally(() => setLoading(false));
   }
@@ -48,11 +54,7 @@ export default function UserList() {
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to load users.',
-          );
+          setError(getApiErrorMessage(requestError));
         }
       })
       .finally(() => {
@@ -223,22 +225,28 @@ export default function UserList() {
 
       {/* User data table */}
       {!loading && !error && (
-        <DataTable
-          ariaLabel="Users"
-          columns={userColumns}
-          data={filteredUsers}
-          emptyState={
-            <div>
-              <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
-              <p className="font-medium">No users found</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {users.length === 0
-                  ? 'No users have been returned by the API.'
-                  : 'Try another search term.'}
-              </p>
-            </div>
-          }
-        />
+        <>
+          <p className="text-xs text-muted-foreground">
+            Account status is not included in the documented user response, so
+            inactive and suspended rows cannot be reliably identified.
+          </p>
+          <DataTable
+            ariaLabel="Users"
+            columns={columns}
+            data={filteredUsers}
+            emptyState={
+              <div>
+                <UserRound className="mx-auto mb-3 size-8 text-muted-foreground" />
+                <p className="font-medium">No users found</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {users.length === 0
+                    ? 'No users have been returned by the API.'
+                    : 'Try another search term.'}
+                </p>
+              </div>
+            }
+          />
+        </>
       )}
     </section>
   );

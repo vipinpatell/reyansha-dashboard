@@ -3,16 +3,22 @@ import {
   Users,
   ShieldCheck,
   Settings,
-  ShoppingCart,
-  GraduationCap,
   BarChart3,
   Code2,
   Megaphone,
   BrainCircuit,
   Activity,
+  KeyRound,
+  LockKeyhole,
+  MailCheck,
 } from 'lucide-react';
 
 import ModuleTile from './module-tile';
+import { useAuth } from '@/components/auth/auth-provider';
+import {
+  canManageUsers,
+  hasPermission,
+} from '@/lib/auth-permissions';
 
 const modules = [
   {
@@ -34,16 +40,22 @@ const modules = [
     icon: Activity,
   },
   {
-    name: 'Learning Management',
-    description: 'Manage courses and learning content.',
-    href: '/learning',
-    icon: GraduationCap,
+    name: 'Change Password',
+    description: 'Update the password for your account.',
+    href: '/change-password',
+    icon: KeyRound,
   },
   {
-    name: 'Shop Management',
-    description: 'Manage products and orders.',
-    href: '/shop',
-    icon: ShoppingCart,
+    name: 'Forgot Password',
+    description: 'Request a password reset link by email.',
+    href: '/forgot-password',
+    icon: MailCheck,
+  },
+  {
+    name: 'Reset Password',
+    description: 'Set a new password using your reset token.',
+    href: '/reset-password',
+    icon: LockKeyhole,
   },
   {
     name: 'Software Services',
@@ -78,9 +90,16 @@ const modules = [
 ];
 
 export default function Tiles() {
+  const { user } = useAuth();
+  const visibleModules = modules.filter((module) => {
+    if (module.href === '/user-management') return canManageUsers(user);
+    if (module.href === '/roles') return hasPermission(user, 'roles.read');
+    return true;
+  });
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {modules.map((module) => (
+      {visibleModules.map((module) => (
         <ModuleTile key={module.href} {...module} />
       ))}
     </div>

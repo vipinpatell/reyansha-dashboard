@@ -1,12 +1,19 @@
 
+'use client';
+
 import Link from 'next/link';
 import {  Plus, Users } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
+import { useAuth } from '@/components/auth/auth-provider';
+import { hasPermission } from '@/lib/auth-permissions';
 
 import UsersPage from './users/page';
 
 export default function UsersManagement() {
+  const { user } = useAuth();
+  const canCreateUser = hasPermission(user, 'users.create');
+
   return (
     <main className="min-h-screen bg-background p-6 sm:p-8">
       <Breadcrumbs />
@@ -24,10 +31,12 @@ export default function UsersManagement() {
           </div>
         </div>
 
-        <Link href="/user-management/add" className={buttonVariants()}>
-          <Plus className="mr-2 size-4" />
-          Add User
-        </Link>
+        {canCreateUser && (
+          <Link href="/user-management/add" className={buttonVariants()}>
+            <Plus className="mr-2 size-4" />
+            Add User
+          </Link>
+        )}
       </div>
 
       <UsersPage />

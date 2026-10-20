@@ -1,14 +1,8 @@
-import {
-  apiRequest,
-  getRefreshToken,
-  isRecord,
-  setAccessToken,
-  setRefreshToken,
-  unwrapData,
-} from './client';
+import { apiRequest, isRecord, unwrapData } from './client';
+import type { AuthRole, AuthUser } from '@/types/auth';
 
 export interface LoginInput {
-  email: string;
+  identifier: string;
   password: string;
 }
 
@@ -19,69 +13,106 @@ export interface PasswordChangeInput {
 
 export interface PasswordResetInput {
   token: string;
-  password: string;
+  newPassword: string;
 }
 
-export interface BootstrapInput {
-  name: string;
-  email: string;
-  password: string;
+function safeString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function rememberAccessToken(response: unknown) {
-  const data = unwrapData(response);
-  if (!isRecord(data)) return;
+function parseRole(value: unknown): AuthRole | null {
+  if (typeof value === 'string') {
+    return { key: value };
+  }
+  if (!isRecord(value)) return null;
 
-  const token =
-    typeof data.accessToken === 'string'
-      ? data.accessToken
-      : typeof data.access_token === 'string'
-        ? data.access_token
-        : typeof data.token === 'string'
-          ? data.token
-          : null;
+  const id =
+    safeString(value._id) ??
+    safeString(value.id);
+  const key = safeString(value.key) ?? safeString(value.roleKey);
+  const name = safeString(value.name);
 
-  if (token) setAccessToken(token);
-
-  const nextRefreshToken =
-    typeof data.refreshToken === 'string'
-      ? data.refreshToken
-      : typeof data.refresh_token === 'string'
-        ? data.refresh_token
-        : null;
-  if (nextRefreshToken) setRefreshToken(nextRefreshToken);
+  if (!id && !key && !name) return null;
+  return { id, key, name };
 }
 
-export async function login(input: LoginInput): Promise<unknown> {
-  const response = await apiRequest('/auth/login', {
+export function parseCurrentUser(response: unknown): AuthUser {
+  const value = unwrapData(response);
+  if (!isRecord(value)) {
+    throw new Error('The current-user response did not contain an account.');
+  }
+
+  const profile =
+    isRecord(value.user) ? value.user :
+    isRecord(value.profile) ? value.profile :
+    isRecord(value.account) ? value.account :
+    value;
+
+  const nameRecord = isRecord(profile.name) ? profile.name : undefined;
+  const name =
+    safeString(profile.fullName) ??
+    safeString(profile.displayName) ??
+    (nameRecord
+      ? [
+          safeString(nameRecord.firstName) ?? safeString(nameRecord.first_name),
+          safeString(nameRecord.lastName) ?? safeString(nameRecord.last_name),
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : safeString(profile.name)) ??
+    safeString(profile.username) ??
+    safeString(profile.email) ??
+    'Account';
+  const profileImage =
+    safeString(profile.profileImage) ??
+    safeString(profile.profile_image) ??
+    safeString(profile.avatarUrl) ??
+    null;
+  const roleData = profile.roles ?? value.roles;
+  const permissionData = profile.permissions ?? value.permissions;
+
+  return {
+    id: safeString(profile._id) ?? safeString(profile.id),
+    name,
+    email: safeString(profile.email),
+    username: safeString(profile.username),
+    profileImage,
+    userType:
+      safeString(profile.userType) ??
+      safeString(profile.user_type),
+    roles: Array.isArray(roleData)
+      ? roleData.map(parseRole).filter((role): role is AuthRole => role !== null)
+      : [],
+    permissions: Array.isArray(permissionData)
+      ? permissionData.filter(
+          (permission): permission is string =>
+            typeof permission === 'string',
+        )
+      : [],
+    mustChangePassword:
+      profile.mustChangePassword === true ||
+      value.mustChangePassword === true,
+  };
+}
+
+export async function login(input: LoginInput): Promise<void> {
+  await apiRequest('/auth/login', {
     method: 'POST',
     body: JSON.stringify(input),
   });
-  rememberAccessToken(response);
-  return response;
 }
 
 export async function logout(): Promise<void> {
-  try {
-    await apiRequest('/auth/logout', { method: 'POST' });
-  } finally {
-    setAccessToken(null);
-    setRefreshToken(null);
-  }
+  await apiRequest('/auth/logout', { method: 'POST' });
 }
 
-export async function getCurrentUser(): Promise<unknown> {
-  return unwrapData(await apiRequest('/auth/me'));
+export async function getCurrentUser(): Promise<AuthUser> {
+  return parseCurrentUser(await apiRequest('/auth/me'));
 }
 
-export async function refreshSession(): Promise<unknown> {
-  const token = getRefreshToken();
-  const response = await apiRequest('/auth/refresh', {
-    method: 'POST',
-    ...(token ? { body: JSON.stringify({ refreshToken: token }) } : {}),
-  });
-  rememberAccessToken(response);
-  return response;
+export async function refreshSession(): Promise<AuthUser> {
+  await apiRequest('/auth/refresh', { method: 'POST' });
+  return getCurrentUser();
 }
 
 export async function changePassword(
@@ -107,13 +138,4 @@ export async function resetPassword(
     method: 'POST',
     body: JSON.stringify(input),
   });
-}
-
-export async function bootstrap(input: BootstrapInput): Promise<unknown> {
-  const response = await apiRequest('/auth/bootstrap', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  rememberAccessToken(response);
-  return response;
 }

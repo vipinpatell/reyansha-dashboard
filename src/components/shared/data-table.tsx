@@ -28,6 +28,7 @@ interface DataTableProps<TData, TValue> {
   emptyState: ReactNode;
   ariaLabel: string;
   initialPageSize?: number;
+  getRowClassName?: (row: TData) => string | undefined;
 }
 
 export default function DataTable<TData, TValue>({
@@ -36,6 +37,7 @@ export default function DataTable<TData, TValue>({
   emptyState,
   ariaLabel,
   initialPageSize = 10,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   // TanStack returns a mutable table instance that React Compiler cannot memoize safely.
@@ -114,7 +116,10 @@ export default function DataTable<TData, TValue>({
         <TableBody>
           {rows.length > 0 ? (
             rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                className={getRowClassName?.(row.original)}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} className="px-4 py-3">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

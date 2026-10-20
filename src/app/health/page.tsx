@@ -8,6 +8,7 @@ import Footer from '@/components/shared/footer/page';
 import HeaderContainer from '@/components/shared/header/header-container';
 import { Button } from '@/components/ui/button';
 import { getHealth } from '@/lib/api/health';
+import { getApiErrorMessage } from '@/lib/api/client';
 
 export default function HealthPage() {
   const [result, setResult] = useState<unknown>(null);
@@ -20,11 +21,7 @@ export default function HealthPage() {
     try {
       setResult(await getHealth());
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to reach the health endpoint.',
-      );
+      setError(getApiErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -38,11 +35,7 @@ export default function HealthPage() {
       })
       .catch((requestError: unknown) => {
         if (active) {
-          setError(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to reach the health endpoint.',
-          );
+          setError(getApiErrorMessage(requestError));
         }
       })
       .finally(() => {

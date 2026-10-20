@@ -11,14 +11,13 @@ function optionalString(
 function parseUser(value: unknown, index?: number): User {
   const location = index === undefined ? 'response' : `at index ${index}`;
 
-  if (
-    !isRecord(value) ||
-    typeof value._id !== 'string' ||
-    !isRecord(value.name)
-  ) {
+  if (!isRecord(value)) {
     throw new Error(`Unexpected user ${location}.`);
   }
+  const id = optionalString(value, '_id') ?? optionalString(value, 'id');
+  if (!id) throw new Error(`Unexpected user ${location}.`);
 
+  const name = isRecord(value.name) ? value.name : undefined;
   const mobile = isRecord(value.mobile) ? value.mobile : undefined;
   const address = isRecord(value.address) ? value.address : undefined;
   const emergencyContact = isRecord(value.emergencyContact)
@@ -26,11 +25,11 @@ function parseUser(value: unknown, index?: number): User {
     : undefined;
 
   return {
-    _id: value._id,
+    _id: id,
     prefix: optionalString(value, 'prefix'),
     name: {
-      firstName: optionalString(value.name, 'firstName'),
-      lastName: optionalString(value.name, 'lastName'),
+      firstName: name ? optionalString(name, 'firstName') : undefined,
+      lastName: name ? optionalString(name, 'lastName') : undefined,
     },
     username: optionalString(value, 'username'),
     dob:
@@ -85,10 +84,35 @@ function parseUser(value: unknown, index?: number): User {
       ? value.skills.filter((skill): skill is string => typeof skill === 'string')
       : undefined,
     roles: Array.isArray(value.roles)
-      ? value.roles.filter((role): role is string => typeof role === 'string')
+      ? value.roles
+          .map((role) =>
+            typeof role === 'string'
+              ? /^[a-f\d]{24}$/i.test(role)
+                ? null
+                : role
+              : isRecord(role) && typeof role.key === 'string'
+                ? role.key
+                : null,
+          )
+          .filter((role): role is string => role !== null)
       : undefined,
-    isActive:
-      typeof value.isActive === 'boolean' ? value.isActive : undefined,
+    roleIds: Array.isArray(value.roleIds)
+      ? value.roleIds.filter((roleId): roleId is string => typeof roleId === 'string')
+      : Array.isArray(value.roles)
+        ? value.roles
+            .map((role) =>
+              typeof role === 'string' && /^[a-f\d]{24}$/i.test(role)
+                ? role
+                : isRecord(role)
+                ? typeof role._id === 'string'
+                  ? role._id
+                  : typeof role.id === 'string'
+                    ? role.id
+                    : null
+                : null,
+            )
+            .filter((roleId): roleId is string => roleId !== null)
+        : undefined,
     createdAt: optionalString(value, 'createdAt'),
     updatedAt: optionalString(value, 'updatedAt'),
   };
@@ -153,11 +177,21 @@ export async function updateUser(
 
 export async function updateUserRoles(
   id: string,
-  roles: string[],
+  roleIds: string[],
 ): Promise<void> {
   await apiRequest(`/users/${encodeURIComponent(id)}/roles`, {
     method: 'PATCH',
-    body: JSON.stringify({ roles }),
+    body: JSON.stringify({ roleIds }),
+  });
+}
+
+export async function setUserPassword(
+  id: string,
+  password: string,
+): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ password }),
   });
 }
 

@@ -5,7 +5,6 @@ import { useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
-  Menu,
   Sun,
   Moon,
   UserRound,
@@ -45,7 +44,6 @@ const getServerMountSnapshot = () => false;
 
 export default function Header({
   user = { name: 'Account', image: null, userType: 'Not signed in' },
-  onMenuClick,
   onProfileClick,
   onSettingsClick,
   onLogout,
@@ -69,15 +67,7 @@ export default function Header({
   return (
     <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b bg-background px-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-3 sm:gap-5">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onMenuClick}
-          aria-label="Toggle navigation menu"
-        >
-          <Menu className="size-5" />
-        </Button>
-
+       
         <Link
           href="/"
           className="flex shrink-0 items-center"

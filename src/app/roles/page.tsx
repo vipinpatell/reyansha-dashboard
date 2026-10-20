@@ -9,20 +9,36 @@ import HeaderContainer from '@/components/shared/header/header-container';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createRole, deleteRole, getRoles, updateRole } from '@/lib/api/roles';
+import { useAuth } from '@/components/auth/auth-provider';
+import { hasPermission } from '@/lib/auth-permissions';
+import { getApiErrorMessage } from '@/lib/api/client';
 import type { Role, RoleInput } from '@/types/role';
+
+const availablePermissions = [
+  'users.read',
+  'users.read_limited',
+  'users.create',
+  'users.update',
+  'users.update_own',
+  'users.deactivate',
+  'roles.read',
+  'roles.manage',
+] as const;
+const availablePermissionSet: ReadonlySet<string> = new Set(availablePermissions);
 
 const emptyForm: RoleInput = {
   key: '',
   name: '',
-  description: '',
   permissions: [],
 };
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Unable to complete the request.';
+  return getApiErrorMessage(error);
 }
 
 export default function RolesPage() {
+  const { user } = useAuth();
+  const canManage = hasPermission(user, 'roles.manage');
   const [roles, setRoles] = useState<Role[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -67,7 +83,6 @@ export default function RolesPage() {
     setForm({
       key: role.key,
       name: role.name ?? '',
-      description: role.description ?? '',
       permissions: role.permissions ?? [],
     });
     setPermissionsText((role.permissions ?? []).join(', '));
@@ -90,17 +105,20 @@ export default function RolesPage() {
       ...form,
       key: form.key.trim(),
       name: form.name.trim(),
-      description: form.description.trim(),
-      permissions: [...new Set(
-        permissionsText.split(',').map((permission) => permission.trim()).filter(Boolean),
-      )],
+      permissions: [
+        ...new Set(
+          permissionsText
+            .split(',')
+            .map((permission) => permission.trim())
+            .filter((permission) => availablePermissionSet.has(permission)),
+        ),
+      ],
     };
 
     try {
       if (editingKey) {
         await updateRole(editingKey, {
           name: input.name,
-          description: input.description,
           permissions: input.permissions,
         });
         setNotice('Role updated.');
@@ -187,10 +205,11 @@ export default function RolesPage() {
                         <code className="rounded bg-muted px-2 py-0.5 text-xs">{role.key}</code>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {role.description || 'No description'}
+                        {role.permissions?.length ?? 0} permission
+                        {(role.permissions?.length ?? 0) === 1 ? '' : 's'}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    {canManage && <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => startEditing(role)}>
                         <Pencil className="mr-2 size-4" />
                         Edit
@@ -198,7 +217,7 @@ export default function RolesPage() {
                       <Button variant="destructive" size="icon" aria-label={`Delete ${role.name || role.key}`} onClick={() => void handleDelete(role)}>
                         <Trash2 className="size-4" />
                       </Button>
-                    </div>
+                    </div>}
                   </div>
                   {role.permissions?.length ? (
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -216,7 +235,7 @@ export default function RolesPage() {
             )}
           </section>
 
-          <form onSubmit={handleSubmit} className="h-fit space-y-4 rounded-xl border bg-card p-5">
+          {canManage && <form onSubmit={handleSubmit} className="h-fit space-y-4 rounded-xl border bg-card p-5">
             <div>
               <h2 className="font-semibold">{editingKey ? 'Edit role' : 'Create role'}</h2>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -240,27 +259,26 @@ export default function RolesPage() {
               <span>Name</span>
               <Input required maxLength={100} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             </label>
-            <label className="block space-y-1.5 text-sm">
-              <span>Description</span>
-              <textarea
-                value={form.description}
-                onChange={(event) => setForm({ ...form, description: event.target.value })}
-                rows={3}
-                maxLength={500}
-                className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </label>
-            <label className="block space-y-1.5 text-sm">
-              <span>Permissions</span>
-              <textarea
-                value={permissionsText}
-                onChange={(event) => setPermissionsText(event.target.value)}
-                rows={4}
-                placeholder="users.read, users.write"
-                className="w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <span className="block text-xs text-muted-foreground">Separate permissions with commas.</span>
-            </label>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Permissions</legend>
+              {availablePermissions.map((permission) => (
+                <label key={permission} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={permissionsText.split(',').map((item) => item.trim()).includes(permission)}
+                    onChange={(event) => {
+                      const selected = new Set(
+                        permissionsText.split(',').map((item) => item.trim()).filter(Boolean),
+                      );
+                      if (event.target.checked) selected.add(permission);
+                      else selected.delete(permission);
+                      setPermissionsText([...selected].join(','));
+                    }}
+                  />
+                  {permission}
+                </label>
+              ))}
+            </fieldset>
             <div className="flex gap-2">
               <Button type="submit" disabled={saving}>
                 {saving ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
@@ -268,7 +286,7 @@ export default function RolesPage() {
               </Button>
               {editingKey && <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>}
             </div>
-          </form>
+          </form>}
         </div>
       </main>
       <Footer />

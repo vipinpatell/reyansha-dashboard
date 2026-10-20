@@ -8,10 +8,10 @@ function parseRole(value: unknown, index?: number): Role {
   }
 
   return {
+    _id: typeof value._id === 'string' ? value._id : undefined,
+    id: typeof value.id === 'string' ? value.id : undefined,
     key: value.key,
     name: typeof value.name === 'string' ? value.name : undefined,
-    description:
-      typeof value.description === 'string' ? value.description : undefined,
     permissions: Array.isArray(value.permissions)
       ? value.permissions.filter(
           (permission): permission is string =>
