@@ -22,8 +22,24 @@ export interface UserEmergencyContact {
   phone: string;
 }
 
+export const USER_ACCOUNT_STATUSES = [
+  'invited',
+  'active',
+  'suspended',
+  'deactivated',
+] as const;
+
+export type UserAccountStatus = (typeof USER_ACCOUNT_STATUSES)[number];
+
+export function isUserAccountStatus(
+  value: string,
+): value is UserAccountStatus {
+  return (USER_ACCOUNT_STATUSES as readonly string[]).includes(value);
+}
+
 export interface User {
   _id: string;
+  accountStatus?: UserAccountStatus;
   prefix?: string | null;
   name: UserName;
   username?: string;

@@ -8,6 +8,7 @@ import { buttonVariants } from '@/components/ui/button';
 import {
   formatUserDate,
   getUserFullName,
+  getUserStatusClasses,
 } from '@/lib/user-format';
 import type { User } from '@/types/user';
 import { canSetUserPassword, hasPermission } from '@/lib/auth-permissions';
@@ -46,6 +47,22 @@ export function createUserColumns(currentUser: AuthUser | null): ColumnDef<User>
             </p>
           </div>
         </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'accountStatus',
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = row.original.accountStatus;
+      const label = status
+        ? `${status.charAt(0).toUpperCase()}${status.slice(1)}`
+        : 'Unavailable';
+
+      return (
+        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getUserStatusClasses(status)}`}>
+          {label}
+        </span>
       );
     },
   },

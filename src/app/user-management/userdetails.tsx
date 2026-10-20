@@ -18,15 +18,22 @@ import {
   ContactRound,
   Pencil,
   ShieldCheck,
-  UserX,
 } from 'lucide-react';
 import Link from 'next/link';
 import Breadcrumbs from '@/components/shared/breadcrumbs/page';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
-  deactivateUser,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   getUserById,
   updateUserRoles,
+  updateUserStatus,
 } from '@/lib/api/users';
 import { getRoles } from '@/lib/api/roles';
 import { userOptions } from '@/lib/user-options';
@@ -34,8 +41,14 @@ import {
   formatUserDate,
   formatUserDateTime,
   getUserFullName,
+  getUserStatusClasses,
 } from '@/lib/user-format';
-import type { User } from '@/types/user';
+import {
+  isUserAccountStatus,
+  USER_ACCOUNT_STATUSES,
+  type User,
+  type UserAccountStatus,
+} from '@/types/user';
 import type { Role } from '@/types/role';
 import { useAuth } from '@/components/auth/auth-provider';
 import { hasPermission } from '@/lib/auth-permissions';
@@ -55,10 +68,13 @@ export default function UserDetails({ id }: UserDetailsProps) {
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[] | null>(null);
   const [rolesLoading, setRolesLoading] = useState(true);
   const [savingRoles, setSavingRoles] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<UserAccountStatus | ''>(
+    '',
+  );
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [statusConfirmationOpen, setStatusConfirmationOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
-  const [deactivatedByAction, setDeactivatedByAction] = useState(false);
   const canAssignRoles = hasPermission(currentUser, 'roles.manage');
   const roleIdsForForm = user
     ? selectedRoleIds ??
@@ -77,6 +93,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
         if (active) {
           setUser(result);
           setSelectedRoleIds(result.roleIds ?? null);
+          setSelectedStatus(result.accountStatus ?? '');
         }
       })
       .catch((requestError: unknown) => {
@@ -134,24 +151,36 @@ export default function UserDetails({ id }: UserDetailsProps) {
     }
   }
 
-  async function deactivate() {
-    if (!user || !window.confirm(`Deactivate ${getUserFullName(user)}?`)) return;
+  async function saveStatus() {
+    if (!user || !selectedStatus || selectedStatus === user.accountStatus) return;
+    if (selectedStatus === 'deactivated' || selectedStatus === 'suspended') {
+      setStatusConfirmationOpen(true);
+      return;
+    }
+    await applyStatus();
+  }
+
+  async function applyStatus() {
+    if (!user || !selectedStatus || selectedStatus === user.accountStatus) return;
     setActionError('');
     setActionNotice('');
-    setDeactivating(true);
+    setUpdatingStatus(true);
     try {
-      await deactivateUser(user._id);
-      setDeactivatedByAction(true);
-      setActionNotice(
-        'The API accepted the deactivation request. Persistent account status is not included in the documented user response.',
-      );
+      await updateUserStatus(user._id, selectedStatus);
+      setUser({ ...user, accountStatus: selectedStatus });
+      setActionNotice(`User status updated to ${selectedStatus}.`);
     } catch (requestError) {
       setActionError(
         getApiErrorMessage(requestError),
       );
     } finally {
-      setDeactivating(false);
+      setUpdatingStatus(false);
     }
+  }
+
+  function handleStatusChange(event: ChangeEvent<HTMLSelectElement>) {
+    const value = event.currentTarget.value;
+    setSelectedStatus(isUserAccountStatus(value) ? value : '');
   }
 
   function handleRoleChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -254,12 +283,10 @@ export default function UserDetails({ id }: UserDetailsProps) {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 User profile
               </p>
-              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                deactivatedByAction
-                  ? 'bg-destructive/10 text-destructive'
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {deactivatedByAction ? 'Deactivation accepted' : 'Status unavailable'}
+              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getUserStatusClasses(user.accountStatus)}`}>
+              {user.accountStatus
+                ? formatOption(user.accountStatus)
+                : 'Status unavailable'}
               </span>
               <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
                 {fullName}
@@ -335,23 +362,41 @@ export default function UserDetails({ id }: UserDetailsProps) {
               <div>
                 <h2 className="font-semibold">Access and status</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Assign roles to this account or deactivate it.
+                  Assign roles or change this account&apos;s status.
                 </p>
               </div>
             </div>
             {hasPermission(currentUser, 'users.deactivate') && (
-              <Button
-                variant="destructive"
-                disabled={deactivating || deactivatedByAction}
-                onClick={() => void deactivate()}
-              >
-                <UserX className="mr-2 size-4" />
-                {deactivating
-                  ? 'Deactivating...'
-                  : deactivatedByAction
-                    ? 'Deactivation accepted'
-                    : 'Deactivate user'}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <label className="sr-only" htmlFor="account-status">
+                  Account status
+                </label>
+                <select
+                  id="account-status"
+                  value={selectedStatus}
+                  onChange={handleStatusChange}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="" disabled>
+                    Select status
+                  </option>
+                  {USER_ACCOUNT_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {formatOption(status)}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  disabled={
+                    updatingStatus ||
+                    !selectedStatus ||
+                    selectedStatus === user.accountStatus
+                  }
+                  onClick={() => void saveStatus()}
+                >
+                  {updatingStatus ? 'Updating...' : 'Update status'}
+                </Button>
+              </div>
             )}
           </div>
           {canAssignRoles && !isSelf && (
@@ -398,6 +443,43 @@ export default function UserDetails({ id }: UserDetailsProps) {
             </p>
           )}
         </section>
+
+        <AlertDialog
+          open={statusConfirmationOpen}
+          onOpenChange={setStatusConfirmationOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm account status change</AlertDialogTitle>
+              <AlertDialogDescription>
+                Change {fullName}&apos;s account status to{' '}
+                <span className="font-medium text-foreground">
+                  {selectedStatus ? formatOption(selectedStatus) : ''}
+                </span>
+                ? They may lose access to the dashboard.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button
+                variant="outline"
+                disabled={updatingStatus}
+                onClick={() => setStatusConfirmationOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={updatingStatus}
+                onClick={() => {
+                  setStatusConfirmationOpen(false);
+                  void applyStatus();
+                }}
+              >
+                {updatingStatus ? 'Updating...' : 'Confirm status change'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="grid items-start gap-5 xl:grid-cols-2">
           <InfoSection
@@ -556,7 +638,7 @@ export default function UserDetails({ id }: UserDetailsProps) {
 
 function formatOption(
   value: string | null | undefined,
-  options: readonly { value: string; label: string }[],
+  options: readonly { value: string; label: string }[] = [],
 ) {
   if (!value) return undefined;
 

@@ -17,10 +17,11 @@ import {
 import { canSetUserPassword } from '../auth-permissions';
 import { validatePassword } from '../password-validation';
 import {
-  deactivateUser,
+  getUserById,
   getUsers,
   setUserPassword,
   updateUserRoles,
+  updateUserStatus,
 } from './users';
 import type { AuthUser } from '@/types/auth';
 
@@ -166,13 +167,13 @@ describe('cookie-session API client', () => {
     });
   });
 
-  it('sends MongoDB role IDs and calls deactivation without an invented body', async () => {
+  it('sends MongoDB role IDs and updates user account status', async () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse({ success: true }))
       .mockResolvedValueOnce(jsonResponse({ success: true }));
 
     await updateUserRoles('user-1', ['role-id-1']);
-    await deactivateUser('user-1');
+    await updateUserStatus('user-1', 'suspended');
 
     expect(mockFetch.mock.calls[0][0]).toBe(
       'http://localhost:3000/api/v1/users/user-1/roles',
@@ -181,10 +182,53 @@ describe('cookie-session API client', () => {
       roleIds: ['role-id-1'],
     });
     expect(mockFetch.mock.calls[1][0]).toBe(
-      'http://localhost:3000/api/v1/users/user-1/deactivate',
+      'http://localhost:3000/api/v1/users/user-1/status',
     );
     expect(mockFetch.mock.calls[1][1]?.method).toBe('PATCH');
-    expect(mockFetch.mock.calls[1][1]?.body).toBeUndefined();
+    expect(JSON.parse(String(mockFetch.mock.calls[1][1]?.body))).toEqual({
+      accountStatus: 'suspended',
+    });
+  });
+
+  it('reads the documented account status and exposes all status updates', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            _id: 'user-1',
+            accountStatus: 'invited',
+            name: {},
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await expect(getUserById('user-1')).resolves.toMatchObject({
+      _id: 'user-1',
+      accountStatus: 'invited',
+    });
+
+    for (const accountStatus of [
+      'invited',
+      'active',
+      'suspended',
+      'deactivated',
+    ] as const) {
+      await updateUserStatus('user-1', accountStatus);
+    }
+
+    expect(mockFetch.mock.calls.slice(1).map(([url, init]) => [
+      url,
+      JSON.parse(String(init?.body)),
+    ])).toEqual(
+      ['invited', 'active', 'suspended', 'deactivated'].map((accountStatus) => [
+        'http://localhost:3000/api/v1/users/user-1/status',
+        { accountStatus },
+      ]),
+    );
   });
 
   it('accepts a reduced profile from the limited-user listing', async () => {

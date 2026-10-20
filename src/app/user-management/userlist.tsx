@@ -78,6 +78,7 @@ export default function UserList() {
       const mobile = user.mobile?.primary ?? '';
       const city = user.address?.city ?? '';
       const state = user.address?.state ?? '';
+      const accountStatus = user.accountStatus ?? '';
 
       return (
         fullName.includes(query) ||
@@ -85,7 +86,8 @@ export default function UserList() {
         email.includes(query) ||
         mobile.toLowerCase().includes(query) ||
         city.toLowerCase().includes(query) ||
-        state.toLowerCase().includes(query)
+        state.toLowerCase().includes(query) ||
+        accountStatus.toLowerCase().includes(query)
       );
     });
   }, [users, search]);
@@ -97,6 +99,7 @@ export default function UserList() {
       'Last Name',
       'Username',
       'Email',
+      'Account Status',
       'Date of Birth',
       'Gender',
       'Primary Mobile',
@@ -116,6 +119,7 @@ export default function UserList() {
       user.name?.lastName ?? '',
       user.username ?? '',
       user.email ?? '',
+      user.accountStatus ?? '',
       formatUserDate(user.dob),
       user.gender ?? '',
       user.mobile?.primary ?? '',
@@ -226,10 +230,6 @@ export default function UserList() {
       {/* User data table */}
       {!loading && !error && (
         <>
-          <p className="text-xs text-muted-foreground">
-            Account status is not included in the documented user response, so
-            inactive and suspended rows cannot be reliably identified.
-          </p>
           <DataTable
             ariaLabel="Users"
             columns={columns}

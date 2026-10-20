@@ -35,7 +35,7 @@ Sign-in accepts an email or username and a password. Password changes and resets
 | `/profile` | `GET /auth/me`, `POST /auth/refresh` |
 | `/change-password` | `POST /auth/change-password` |
 | `/forgot-password`, `/reset-password` | `POST /auth/forgot-password`, `POST /auth/reset-password` |
-| `/user-management` | List, create, read, replace, partial update, role assignment, deactivate and authorized admin password set |
+| `/user-management` | List, create, read, replace, partial update, role assignment, account status updates and authorized admin password set |
 | `/roles` | List, create, update and delete roles |
 | `/health` | API health check |
 
@@ -43,4 +43,4 @@ Role assignment sends `{ "roleIds": ["<MongoDB role id>"] }`. User administratio
 
 Navigation and actions are filtered using the current account’s API-provided permissions. The API enforces access, including limited direct-report access, regardless of what the UI displays.
 
-The live Swagger document does not define response schemas for user listing/details or the deactivate operation. The dashboard treats a successful deactivate response as accepted but cannot persistently display disabled/suspended row status or distinguish suspension until the API documents and returns those fields.
+User account status is updated with `PATCH /api/v1/users/:id/status` using `{ "accountStatus": "invited" | "active" | "suspended" | "deactivated" }`. Status changes are available to accounts with the `users.deactivate` permission. The user list and detail page display `accountStatus` when it is included in the user response.

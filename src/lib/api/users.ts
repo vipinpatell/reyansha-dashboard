@@ -1,5 +1,10 @@
 import { apiRequest, isRecord, unwrapData } from '@/lib/api/client';
-import type { CreateUserInput, User } from '@/types/user';
+import {
+  isUserAccountStatus,
+  type CreateUserInput,
+  type User,
+  type UserAccountStatus,
+} from '@/types/user';
 
 function optionalString(
   record: Record<string, unknown>,
@@ -26,6 +31,11 @@ function parseUser(value: unknown, index?: number): User {
 
   return {
     _id: id,
+    accountStatus:
+      typeof value.accountStatus === 'string' &&
+      isUserAccountStatus(value.accountStatus)
+        ? value.accountStatus
+        : undefined,
     prefix: optionalString(value, 'prefix'),
     name: {
       firstName: name ? optionalString(name, 'firstName') : undefined,
@@ -195,8 +205,12 @@ export async function setUserPassword(
   });
 }
 
-export async function deactivateUser(id: string): Promise<void> {
-  await apiRequest(`/users/${encodeURIComponent(id)}/deactivate`, {
+export async function updateUserStatus(
+  id: string,
+  accountStatus: UserAccountStatus,
+): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}/status`, {
     method: 'PATCH',
+    body: JSON.stringify({ accountStatus }),
   });
 }
